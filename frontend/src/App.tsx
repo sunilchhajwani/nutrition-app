@@ -36,6 +36,7 @@ function App() {
   const [foodsFile, setFoodsFile] = useState<File | null>(null);
   const [rdaFile, setRdaFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   const [foods, setFoods] = useState<FoodItem[]>([]);
   const [rdaProfiles, setRdaProfiles] = useState<string[]>([]);
@@ -44,8 +45,21 @@ function App() {
   const [calculationResult, setCalculationResult] = useState<CalculationResult | null>(null);
   const [coMorbidities, setCoMorbidities] = useState<string>('');
   const [aiFeedback, setAiFeedback] = useState<string>('');
+  const [mealPlan, setMealPlan] = useState<{[key: string]: SelectedFood[]}>({ // New state for meal plan
+    'Breakfast': [],
+    'Lunch': [],
+    'Dinner': [],
+    'Morning Snacks': [],
+    'Evening Snacks': [],
+  });
+  const mealCategories = ['Breakfast', 'Lunch', 'Dinner', 'Morning Snacks', 'Evening Snacks'];
+  const [selectedMealCategory, setSelectedMealCategory] = useState<string>(mealCategories[0]); // Default to first category
 
   // --- Data Fetching --- //
+  const filteredFoods = foods.filter(food =>
+    food.FoodName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   useEffect(() => {
     const fetchFoods = async () => {
       try {
@@ -163,6 +177,30 @@ function App() {
     return food ? food.quantity : 0;
   };
 
+  const handleAddToMeal = (foodName: string, quantity: number, mealCategory: string) => {
+    if (quantity <= 0) {
+      setMessage('Quantity must be greater than 0 to add to meal plan.');
+      return;
+    }
+
+    setMealPlan(prevMealPlan => {
+      const updatedCategoryFoods = [...prevMealPlan[mealCategory]];
+      const existingIndex = updatedCategoryFoods.findIndex(item => item.food_name === foodName);
+
+      if (existingIndex > -1) {
+        updatedCategoryFoods[existingIndex] = { ...updatedCategoryFoods[existingIndex], quantity: quantity };
+      } else {
+        updatedCategoryFoods.push({ food_name: foodName, quantity: quantity });
+      }
+
+      return {
+        ...prevMealPlan,
+        [mealCategory]: updatedCategoryFoods,
+      };
+    });
+    setMessage(`${quantity} of ${foodName} added to ${mealCategory}.`);
+  };
+
   // --- Calculation Handler ---
   const handleCalculateNutrition = async () => {
     if (selectedFoods.length === 0) {
@@ -274,9 +312,17 @@ function App() {
           </div>
 
           <h3>Available Foods</h3>
+          <div className="search-bar">
+            <input
+              type="text"
+              placeholder="Search food items..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
           <div className="food-list">
-            {foods.length > 0 ? (
-              foods.map(food => (
+            {filteredFoods.length > 0 ? (
+              filteredFoods.map(food => (
                 <div key={food.FoodName} className="food-item">
                   <span>{food.FoodName} ({food.ServingSize})</span>
                   <input
@@ -287,15 +333,44 @@ function App() {
                     onChange={(e) => handleFoodQuantityChange(food.FoodName, e.target.value)}
                     placeholder="Quantity"
                   />
+                  <select
+                    value={selectedMealCategory}
+                    onChange={(e) => setSelectedMealCategory(e.target.value)}
+                  >
+                    {mealCategories.map(category => (
+                      <option key={category} value={category}>{category}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => handleAddToMeal(food.FoodName, getSelectedFoodQuantity(food.FoodName), selectedMealCategory)}>
+                    Add to Meal
+                  </button>
                 </div>
               ))
             ) : (
-              <p>No food data available. Please upload foods.xlsx.</p>
+              <p>No food data available or no items match your search. Please upload foods.xlsx.</p>
             )}
           </div>
           <button onClick={handleCalculateNutrition} className="calculate-button">
             Calculate Nutrition
           </button>
+        </section>
+
+        <section className="meal-plan-section">
+          <h2>Your Meal Plan</h2>
+          {mealCategories.map(category => (
+            <div key={category} className="meal-category">
+              <h3>{category}</h3>
+              {mealPlan[category].length > 0 ? (
+                <ul>
+                  {mealPlan[category].map((item, index) => (
+                    <li key={index}>{item.food_name}: {item.quantity}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No items added to {category}.</p>
+              )}
+            </div>
+          ))}
         </section>
 
         {calculationResult && (

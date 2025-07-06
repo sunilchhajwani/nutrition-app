@@ -49,6 +49,19 @@ h2 {
   margin-bottom: 15px;
 }
 
+.search-bar {
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.search-bar input {
+  width: calc(100% - 20px);
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
 .upload-item label,
 .rda-profile-selection label,
 .co-morbidities-input label {
@@ -112,10 +125,30 @@ button:hover {
 }
 
 .food-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 15px;
+  display: flex;
+  overflow-x: auto; /* Enable horizontal scrolling */
+  gap: 15px; /* Space between items */
   margin-top: 20px;
+  padding-bottom: 10px; /* Add some padding for the scrollbar */
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+}
+
+.food-list::-webkit-scrollbar {
+  height: 8px;
+}
+
+.food-list::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 4px;
+}
+
+.food-list::-webkit-scrollbar-track {
+  background-color: #f1f1f1;
+}
+
+.food-item {
+  flex: 0 0 auto; /* Prevent items from growing/shrinking and keep their size */
+  width: 250px; /* Fixed width for each item, adjust as needed */
 }
 
 .food-item {
@@ -127,12 +160,56 @@ button:hover {
   justify-content: space-between;
   align-items: center;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  flex-direction: column; /* Stack items vertically within the food-item */
+  align-items: flex-start; /* Align items to the start */
+  gap: 8px; /* Space between elements within food-item */
+}
+
+.food-item input[type="number"],
+.food-item select,
+.food-item button {
+  width: calc(100% - 20px); /* Adjust width to fit padding */
+  margin-left: 0; /* Remove left margin */
+  margin-right: 0; /* Remove right margin */
 }
 
 .food-item input[type="number"] {
-  width: 80px;
-  text-align: right;
-  margin-left: 10px;
+  text-align: left; /* Align quantity input to left */
+}
+
+.meal-plan-section {
+  margin-top: 30px;
+}
+
+.meal-category {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 15px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.meal-category h3 {
+  margin-top: 0;
+  color: #007bff;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+
+.meal-category ul {
+  list-style: none;
+  padding: 0;
+}
+
+.meal-category li {
+  padding: 5px 0;
+  border-bottom: 1px dashed #eee;
+}
+
+.meal-category li:last-child {
+  border-bottom: none;
 }
 
 table {
