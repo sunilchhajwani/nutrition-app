@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import KitchenDashboard from './KitchenDashboard';
 
-const API_BASE_URL = 'http://localhost:8001/api'; // Backend is running on port 8001
+const API_BASE_URL = 'http://localhost:8000/api'; // Backend is running on port 8000
 
 interface FoodItem {
   'FoodName': string;
@@ -33,6 +34,7 @@ interface ErrorResponse {
 }
 
 function App() {
+  const [currentView, setCurrentView] = useState<'main' | 'dashboard'>('main'); // 'main' or 'dashboard'
   const [foodsFile, setFoodsFile] = useState<File | null>(null);
   const [rdaFile, setRdaFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string>('');
@@ -307,8 +309,14 @@ function App() {
     <div className="App">
       <header className="App-header">
         <h1>Simran Nutrition App</h1>
+        <nav>
+          <button onClick={() => setCurrentView('main')} className={currentView === 'main' ? 'active' : ''}>Nutrition Planner</button>
+          <button onClick={() => setCurrentView('dashboard')} className={currentView === 'dashboard' ? 'active' : ''}>Kitchen Dashboard</button>
+        </nav>
       </header>
       <main className="App-main">
+        {currentView === 'main' ? (
+          <>
         <section className="file-upload-section">
           <h2>Upload Data Files</h2>
           <div className="upload-item">
@@ -502,6 +510,10 @@ function App() {
           )}
         </section>
 
+      </>
+        ) : (
+          <KitchenDashboard />
+        )}
       </main>
     </div>
   );

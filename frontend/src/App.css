@@ -15,6 +15,31 @@
   padding: 10px 0;
 }
 
+.App-header nav {
+  margin-top: 10px;
+}
+
+.App-header nav button {
+  background-color: #007bff;
+  color: white;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  margin: 0 5px;
+  transition: background-color 0.2s ease;
+}
+
+.App-header nav button:hover {
+  background-color: #0056b3;
+}
+
+.App-header nav button.active {
+  background-color: #28a745;
+  font-weight: bold;
+}
+
 .App-main {
   padding: 20px;
   display: flex;
@@ -274,4 +299,77 @@ tr:nth-child(even) {
 .ai-output h3 {
   color: #1890ff;
   margin-top: 0;
+}
+
+/* Kitchen Dashboard Styles */
+.kitchen-dashboard {
+  width: 100%;
+  max-width: 900px; /* Slightly wider for dashboard */
+  margin: 20px auto;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  text-align: left;
+}
+
+.kitchen-dashboard h2 {
+  text-align: center;
+  color: #0056b3;
+  margin-bottom: 25px;
+}
+
+.meal-plans-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.meal-plan-card {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.meal-plan-card h3 {
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.meal-plan-card p {
+  font-size: 0.9em;
+  color: #666;
+  margin-bottom: 15px;
+}
+
+.meal-plan-items {
+  margin-top: 15px;
+}
+
+.meal-category-display h4 {
+  color: #007bff;
+  margin-top: 10px;
+  margin-bottom: 5px;
+}
+
+.meal-category-display ul {
+  list-style: none;
+  padding: 0;
+  margin-bottom: 10px;
+}
+
+.meal-category-display li {
+  background-color: #f0f8ff;
+  border: 1px solid #e0f2ff;
+  padding: 8px;
+  margin-bottom: 5px;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }

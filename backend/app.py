@@ -1,12 +1,15 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
 import io
 import os
 import math
-import numpy as np # Import numpy
-# import google.generativeai as genai # Uncomment this line when integrating actual Gemini API
+import numpy as np
+from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship, Session
+from datetime import datetime
 
 app = FastAPI()
 
@@ -19,12 +22,67 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
-FOODS_FILE = os.path.join(DATA_DIR, "foods.xlsx")
-RDA_FILE = os.path.join(DATA_DIR, "rda.xlsx")
+# --- SQLAlchemy Setup ---
+DATABASE_URL = "sqlite:///./nutrition.db"
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
-foods_df: pd.DataFrame = None
-rda_df: pd.DataFrame = None
+# --- Database Models ---
+class FoodItem(Base):
+    __tablename__ = "food_items"
+    id = Column(Integer, primary_key=True, index=True)
+    FoodName = Column(String, unique=True, index=True)
+    ServingSize = Column(String)
+    Calories_kcal = Column(Float)
+    Protein_g = Column(Float)
+    Carbohydrates_g = Column(Float)
+    Fat_g = Column(Float)
+    Sodium_mg = Column(Float)
+    Fiber_g = Column(Float)
+
+    # Relationship to MealPlanItem
+    meal_plan_items = relationship("MealPlanItem", back_populates="food_item")
+
+class RDAProfile(Base):
+    __tablename__ = "rda_profiles"
+    id = Column(Integer, primary_key=True, index=True)
+    ProfileName = Column(String, unique=True, index=True)
+    # Dynamically add nutrient columns based on foods.xlsx
+    # For now, hardcode common ones, will handle dynamic later if needed
+    Calories_kcal = Column(Float, nullable=True)
+    Protein_g = Column(Float, nullable=True)
+    Carbohydrates_g = Column(Float, nullable=True)
+    Fat_g = Column(Float, nullable=True)
+    Sodium_mg = Column(Float, nullable=True)
+    Fiber_g = Column(Float, nullable=True)
+
+class MealPlan(Base):
+    __tablename__ = "meal_plans"
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(String, default=lambda: datetime.now().isoformat()) # Store as ISO format string
+    # Add other fields like dietician_id, patient_id if multi-user is implemented
+
+    items = relationship("MealPlanItem", back_populates="meal_plan")
+
+class MealPlanItem(Base):
+    __tablename__ = "meal_plan_items"
+    id = Column(Integer, primary_key=True, index=True)
+    meal_plan_id = Column(Integer, ForeignKey("meal_plans.id"))
+    food_item_id = Column(Integer, ForeignKey("food_items.id"))
+    meal_category = Column(String) # Breakfast, Lunch, Dinner, etc.
+    quantity = Column(Float)
+
+    meal_plan = relationship("MealPlan", back_populates="items")
+    food_item = relationship("FoodItem", back_populates="meal_plan_items")
+
+# Dependency to get the database session
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # --- Pydantic Models for Request Bodies ---
 class FoodSelection(BaseModel):
@@ -39,53 +97,16 @@ class AIFeedbackRequest(BaseModel):
     nutritional_summary: dict  # This will contain total_nutrients, nutrient_comparison etc.
     co_morbidities: str
 
-class MealPlanItem(BaseModel):
+class MealPlanItemRequest(BaseModel):
     food_name: str
     quantity: float
 
 class SendMealPlanRequest(BaseModel):
-    meal_plan: dict[str, list[MealPlanItem]] # e.g., {"Breakfast": [{"food_name": "Egg", "quantity": 2}]}
-
-# --- Data Loading and Persistence ---
-def load_data():
-    global foods_df, rda_df
-    try:
-        if os.path.exists(FOODS_FILE):
-            foods_df = pd.read_excel(FOODS_FILE)
-            # Convert all columns except 'FoodName', 'ServingSize' to numeric, coercing errors
-            food_nutrient_cols = [col for col in foods_df.columns if col not in ['FoodName', 'ServingSize']]
-            for col in food_nutrient_cols:
-                # Remove '<' character before converting to numeric
-                foods_df[col] = foods_df[col].astype(str).str.replace('<', '', regex=False)
-                foods_df[col] = pd.to_numeric(foods_df[col], errors='coerce')
-            # Replace NaN/inf with None in numeric columns
-            foods_df[food_nutrient_cols] = foods_df[food_nutrient_cols].replace([np.nan, np.inf, -np.inf], None)
-            print("foods.xlsx loaded from disk.")
-        else:
-            print("foods.xlsx not found on disk. Will start with empty food data.")
-
-        if os.path.exists(RDA_FILE):
-            rda_df = pd.read_excel(RDA_FILE)
-            # Get all columns except 'ProfileName' and convert them to numeric
-            cols_to_convert = [col for col in rda_df.columns if col != 'ProfileName']
-            for col in cols_to_convert:
-                # Remove '<' character before converting to numeric
-                rda_df[col] = rda_df[col].astype(str).str.replace('<', '', regex=False)
-                rda_df[col] = pd.to_numeric(rda_df[col], errors='coerce')
-            # Replace NaN/inf with None in numeric columns
-            rda_df[cols_to_convert] = rda_df[cols_to_convert].replace([np.nan, np.inf, -np.inf], None)
-            print("rda.xlsx loaded from disk.")
-        else:
-            print("rda.xlsx not found on disk. Will start with empty RDA data.")
-
-    except Exception as e:
-        print(f"An error occurred while loading data from disk: {e}")
-        foods_df = None
-        rda_df = None
+    meal_plan: dict[str, list[MealPlanItemRequest]] # e.g., {"Breakfast": [{"food_name": "Egg", "quantity": 2}]}
 
 @app.on_event("startup")
 async def startup_event():
-    load_data()
+    Base.metadata.create_all(bind=engine)
     # Configure Gemini API (Uncomment and replace with your API key)
     # GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # It's best practice to use environment variables
     # if GEMINI_API_KEY:
@@ -94,223 +115,243 @@ async def startup_event():
     #     print("Warning: GEMINI_API_KEY not found. AI feedback will not work.")
 
 # --- Utility Functions ---
-def sanitize_for_json(obj):
-    """Recursively replace NaN and inf values with None in dicts/lists."""
-    if isinstance(obj, float):
-        if math.isnan(obj) or math.isinf(obj):
-            return None
-        return obj
-    elif isinstance(obj, dict):
-        return {k: sanitize_for_json(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [sanitize_for_json(i) for i in obj]
-    else:
-        return obj
-
 # --- Endpoints ---
 @app.get("/")
 async def read_root():
     return {"message": "Simran Nutrition App Backend is running!"}
 
 @app.post("/api/upload-foods")
-async def upload_foods(file: UploadFile = File(...)):
-    global foods_df
+async def upload_foods(file: UploadFile = File(...), db: Session = Depends(get_db)):
     if not file.filename.endswith(('.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload an Excel file (.xlsx or .xls).")
     try:
         content = await file.read()
         temp_df = pd.read_excel(io.BytesIO(content))
 
-        # Basic validation: Check for required columns
         required_food_cols = ['FoodName', 'ServingSize', 'Calories (kcal)', 'Protein (g)', 'Carbohydrates (g)', 'Fat (g)', 'Sodium (mg)', 'Fiber (g)']
         if not all(col in temp_df.columns for col in required_food_cols):
             raise HTTPException(status_code=400, detail=f"Missing required columns in foods.xlsx. Expected: {required_food_cols}")
 
-        # Convert all nutrient columns to numeric, coercing errors
-        nutrient_cols = [col for col in temp_df.columns if col not in ['FoodName', 'ServingSize']]
-        for col in nutrient_cols:
-            temp_df[col] = pd.to_numeric(temp_df[col], errors='coerce')
+        # Prepare data for database insertion
+        food_items_to_add = []
+        for index, row in temp_df.iterrows():
+            food_name = row['FoodName']
+            existing_food = db.query(FoodItem).filter(FoodItem.FoodName == food_name).first()
 
-        # Replace NaN/inf with None in numeric columns BEFORE assigning to global foods_df
-        temp_df[nutrient_cols] = temp_df[nutrient_cols].replace([np.nan, np.inf, -np.inf], None)
+            food_data = {
+                "FoodName": food_name,
+                "ServingSize": row['ServingSize'],
+                "Calories_kcal": row.get('Calories (kcal)'),
+                "Protein_g": row.get('Protein (g)'),
+                "Carbohydrates_g": row.get('Carbohydrates (g)'),
+                "Fat_g": row.get('Fat (g)'),
+                "Sodium_mg": row.get('Sodium (mg)'),
+                "Fiber_g": row.get('Fiber (g)'),
+            }
+            # Replace NaN with None for database
+            for key, value in food_data.items():
+                if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+                    food_data[key] = None
 
-        # Now that validation and conversion are done, assign to the global dataframe
-        foods_df = temp_df
+            if existing_food:
+                # Update existing food item
+                for key, value in food_data.items():
+                    setattr(existing_food, key.replace(' (kcal)', '_kcal').replace(' (g)', '_g').replace(' (mg)', '_mg').replace(' ', ''), value)
+            else:
+                # Add new food item
+                new_food = FoodItem(
+                    FoodName=food_data["FoodName"],
+                    ServingSize=food_data["ServingSize"],
+                    Calories_kcal=food_data["Calories_kcal"],
+                    Protein_g=food_data["Protein_g"],
+                    Carbohydrates_g=food_data["Carbohydrates_g"],
+                    Fat_g=food_data["Fat_g"],
+                    Sodium_mg=food_data["Sodium_mg"],
+                    Fiber_g=food_data["Fiber_g"],
+                )
+                food_items_to_add.append(new_food)
+        
+        if food_items_to_add:
+            db.add_all(food_items_to_add)
+        db.commit()
 
-        # Save the uploaded file to disk for persistence
-        with open(FOODS_FILE, "wb") as f:
-            f.write(content)
-
-        print("foods.xlsx uploaded, loaded, and saved successfully.")
-        return {"message": "foods.xlsx uploaded and processed successfully.", "filename": file.filename}
+        print("Foods data uploaded and processed successfully into SQLite.")
+        return {"message": "Foods data uploaded and processed successfully.", "filename": file.filename}
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Error processing foods.xlsx: {e}")
 
 @app.post("/api/upload-rda")
-async def upload_rda(file: UploadFile = File(...)):
-    global rda_df
+async def upload_rda(file: UploadFile = File(...), db: Session = Depends(get_db)):
     if not file.filename.endswith(('.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload an Excel file (.xlsx or .xls).")
     try:
         content = await file.read()
         temp_df = pd.read_excel(io.BytesIO(content))
 
-        # Basic validation: Check for required columns (ProfileName and at least one nutrient column)
         if 'ProfileName' not in temp_df.columns:
             raise HTTPException(status_code=400, detail="Missing 'ProfileName' column in rda.xlsx.")
 
-        # Convert all nutrient columns to numeric, coercing errors
-        nutrient_cols = [col for col in temp_df.columns if col != 'ProfileName']
-        for col in nutrient_cols:
-            temp_df[col] = pd.to_numeric(temp_df[col], errors='coerce')
+        rda_profiles_to_add = []
+        for index, row in temp_df.iterrows():
+            profile_name = row['ProfileName']
+            existing_rda = db.query(RDAProfile).filter(RDAProfile.ProfileName == profile_name).first()
 
-        # Get nutrient columns from foods_df for validation (if foods_df is already loaded)
-        if foods_df is not None:
-            food_nutrient_cols = [col for col in foods_df.columns if col not in ['FoodName', 'ServingSize']]
-            # Check if all food nutrient columns are present in the uploaded RDA file
-            missing_rda_cols = [col for col in food_nutrient_cols if col not in temp_df.columns]
-            if missing_rda_cols:
-                 # Add missing columns to temp_df and fill with None
-                 for col in missing_rda_cols:
-                     temp_df[col] = None
-                 print(f"Warning: Added missing RDA columns from foods.xlsx: {missing_rda_cols}. Filled with None.")
+            rda_data = {
+                "ProfileName": profile_name,
+                "Calories_kcal": row.get('Calories (kcal)'),
+                "Protein_g": row.get('Protein (g)'),
+                "Carbohydrates_g": row.get('Carbohydrates (g)'),
+                "Fat_g": row.get('Fat (g)'),
+                "Sodium_mg": row.get('Sodium (mg)'),
+                "Fiber_g": row.get('Fiber (g)'),
+            }
+            # Replace NaN with None for database
+            for key, value in rda_data.items():
+                if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+                    rda_data[key] = None
 
-        # Replace NaN/inf with None in numeric columns BEFORE assigning to global rda_df
-        # Use the potentially updated nutrient_cols list if columns were added
-        current_nutrient_cols = [col for col in temp_df.columns if col != 'ProfileName']
-        temp_df[current_nutrient_cols] = temp_df[current_nutrient_cols].replace([np.nan, np.inf, -np.inf], None)
+            if existing_rda:
+                # Update existing RDA profile
+                for key, value in rda_data.items():
+                    setattr(existing_rda, key.replace(' (kcal)', '_kcal').replace(' (g)', '_g').replace(' (mg)', '_mg').replace(' ', ''), value)
+            else:
+                # Add new RDA profile
+                new_rda = RDAProfile(
+                    ProfileName=rda_data["ProfileName"],
+                    Calories_kcal=rda_data["Calories_kcal"],
+                    Protein_g=rda_data["Protein_g"],
+                    Carbohydrates_g=rda_data["Carbohydrates_g"],
+                    Fat_g=rda_data["Fat_g"],
+                    Sodium_mg=rda_data["Sodium_mg"],
+                    Fiber_g=rda_data["Fiber_g"],
+                )
+                rda_profiles_to_add.append(new_rda)
+        
+        if rda_profiles_to_add:
+            db.add_all(rda_profiles_to_add)
+        db.commit()
 
-
-        # Now that validation and conversion are done, assign to the global dataframe
-        rda_df = temp_df
-
-        # Save the uploaded file to disk for persistence
-        with open(RDA_FILE, "wb") as f:
-            f.write(content)
-
-        print("rda.xlsx uploaded, loaded, and saved successfully.")
-        return {"message": "rda.xlsx uploaded and processed successfully.", "filename": file.filename}
+        print("RDA data uploaded and processed successfully into SQLite.")
+        return {"message": "RDA data uploaded and processed successfully.", "filename": file.filename}
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Error processing rda.xlsx: {e}")
 
 @app.get("/api/foods")
-async def get_foods():
-    if foods_df is None:
-        raise HTTPException(status_code=404, detail="Food data not yet uploaded. Please upload foods.xlsx.")
-    # Data is already sanitized with None after loading/uploading,
-    # but sanitize_for_json is kept as a safeguard.
-    return sanitize_for_json(foods_df.to_dict(orient="records"))
+async def get_foods(db: Session = Depends(get_db)):
+    foods = db.query(FoodItem).all()
+    if not foods:
+        raise HTTPException(status_code=404, detail="No food data available. Please upload foods.xlsx.")
+    return [
+        {
+            "FoodName": food.FoodName,
+            "ServingSize": food.ServingSize,
+            "Calories (kcal)": food.Calories_kcal,
+            "Protein (g)": food.Protein_g,
+            "Carbohydrates (g)": food.Carbohydrates_g,
+            "Fat (g)": food.Fat_g,
+            "Sodium (mg)": food.Sodium_mg,
+            "Fiber (g)": food.Fiber_g,
+        }
+        for food in foods
+    ]
 
 @app.get("/api/rda-profiles")
-async def get_rda_profiles():
-    if rda_df is None:
-        raise HTTPException(status_code=404, detail="RDA data not yet uploaded. Please upload rda.xlsx.")
-    # No numeric data returned here, so no sanitization needed for this specific endpoint
-    return rda_df["ProfileName"].unique().tolist()
+async def get_rda_profiles(db: Session = Depends(get_db)):
+    rda_profiles = db.query(RDAProfile).all()
+    if not rda_profiles:
+        raise HTTPException(status_code=404, detail="No RDA data available. Please upload rda.xlsx.")
+    return [profile.ProfileName for profile in rda_profiles]
 
 @app.post("/api/calculate-nutrition")
-async def calculate_nutrition(request: CalculateNutritionRequest):
-    if foods_df is None or rda_df is None:
-        raise HTTPException(status_code=404, detail="Food or RDA data not uploaded. Please upload both Excel files.")
+async def calculate_nutrition(request: CalculateNutritionRequest, db: Session = Depends(get_db)):
+    # Fetch all food items from the database once
+    all_foods = {food.FoodName: food for food in db.query(FoodItem).all()}
 
-    # Initialize total_nutrients with 0.0 for known nutrient columns from foods_df
-    # Ensure we only include columns that are numeric after loading/sanitizing
-    numeric_food_cols = foods_df.select_dtypes(include=np.number).columns.tolist()
-    total_nutrients = {col: 0.0 for col in numeric_food_cols}
+    # Initialize total_nutrients with 0.0 for all known nutrient columns from FoodItem model
+    # This assumes all FoodItem attributes ending with _kcal, _g, _mg are nutrients
+    nutrient_cols = [
+        "Calories_kcal", "Protein_g", "Carbohydrates_g", "Fat_g", "Sodium_mg", "Fiber_g"
+    ]
+    total_nutrients = {col: 0.0 for col in nutrient_cols}
 
     selected_menu_details = []
 
     for item in request.selected_foods:
-        food_row = foods_df[foods_df['FoodName'] == item.food_name]
-        if food_row.empty:
+        food_item = all_foods.get(item.food_name)
+        if not food_item:
             raise HTTPException(status_code=404, detail=f"Food item '{item.food_name}' not found in foods data.")
-        
-        # Convert row to dict. NaN/inf should already be None due to fillna after load/upload
-        food_data = food_row.iloc[0].to_dict()
         
         selected_menu_details.append({
             "food_name": item.food_name,
             "quantity": item.quantity,
-            # ServingSize might be None if the cell was empty/invalid
-            "serving_size": food_data.get('ServingSize') 
+            "serving_size": food_item.ServingSize
         })
 
-        for nutrient in total_nutrients.keys(): # Iterate over the numeric columns we initialized
-            # Get nutrient value, default to 0 if None or not present
-            food_nutrient_value = food_data.get(nutrient, 0)
+        for nutrient_attr in nutrient_cols:
+            food_nutrient_value = getattr(food_item, nutrient_attr, 0.0)
             if food_nutrient_value is None: # Treat None as 0 for calculation
-                 food_nutrient_value = 0
+                 food_nutrient_value = 0.0
+            total_nutrients[nutrient_attr] += food_nutrient_value * item.quantity
 
-            # Perform calculation. If food_nutrient_value is 0 or a number, this works.
-            # If item.quantity is NaN/inf (unlikely due to Pydantic but possible), result could be NaN/inf.
-            # The final sanitize_for_json will handle this.
-            total_nutrients[nutrient] += food_nutrient_value * item.quantity
-
-    rda_profile_row = rda_df[rda_df['ProfileName'] == request.rda_profile_name]
-    if rda_profile_row.empty:
+    rda_profile = db.query(RDAProfile).filter(RDAProfile.ProfileName == request.rda_profile_name).first()
+    if not rda_profile:
         raise HTTPException(status_code=404, detail=f"RDA profile '{request.rda_profile_name}' not found.")
     
-    # Convert row to dict. NaN/inf should already be None due to fillna after load/upload
-    rda_targets = rda_profile_row.iloc[0].drop('ProfileName').to_dict()
+    rda_targets = {
+        "Calories_kcal": rda_profile.Calories_kcal,
+        "Protein_g": rda_profile.Protein_g,
+        "Carbohydrates_g": rda_profile.Carbohydrates_g,
+        "Fat_g": rda_profile.Fat_g,
+        "Sodium_mg": rda_profile.Sodium_mg,
+        "Fiber_g": rda_profile.Fiber_g,
+    }
 
     nutrient_comparison = {}
-    # Iterate over all nutrients present in either total_nutrients or rda_targets
-    all_nutrients = set(total_nutrients.keys()).union(set(rda_targets.keys()))
+    for nutrient_attr in nutrient_cols:
+        total_val = total_nutrients.get(nutrient_attr, 0.0)
+        rda_val = rda_targets.get(nutrient_attr, None)
 
-    for nutrient in all_nutrients:
-        total_val = total_nutrients.get(nutrient, 0) # Default to 0 if nutrient not in total
-        rda_val = rda_targets.get(nutrient, None) # Default to None if nutrient not in RDA
-
-        # Handle cases where RDA value is None
         if rda_val is None:
-            nutrient_comparison[nutrient] = None # Cannot compare if no RDA target
+            nutrient_comparison[nutrient_attr] = None
         else:
-             # Ensure total_val is treated as 0 if it's None (shouldn't happen with current init, but safe)
-            if total_val is None:
-                total_val = 0
-            nutrient_comparison[nutrient] = total_val - rda_val
+            nutrient_comparison[nutrient_attr] = total_val - rda_val
 
     # Generate a simple summary
     summary_parts = []
     summary_parts.append(f"Selected menu provides: ")
-    # Iterate over total_nutrients, which only contains numeric columns
-    for nutrient, value in total_nutrients.items():
-         # Format only if value is not None
+    for nutrient_attr, value in total_nutrients.items():
+        # Convert attribute name back to original format for display
+        display_name = nutrient_attr.replace('_kcal', ' (kcal)').replace('_g', ' (g)').replace('_mg', ' (mg)')
         formatted_value = f"{value:.1f}" if value is not None else "N/A"
-        summary_parts.append(f"{nutrient}: {formatted_value}")
+        summary_parts.append(f"{display_name}: {formatted_value}")
     
     summary_parts.append(f"\nCompared to {request.rda_profile_name} RDA: ")
-    # Iterate over rda_targets, which contains nutrients from RDA file
-    for nutrient, rda_val in rda_targets.items():
-         # Format only if value is not None
+    for nutrient_attr, rda_val in rda_targets.items():
+        display_name = nutrient_attr.replace('_kcal', ' (kcal)').replace('_g', ' (g)').replace('_mg', ' (mg)')
         formatted_rda_val = f"{rda_val:.1f}" if rda_val is not None else "N/A"
-        summary_parts.append(f"{nutrient}: {formatted_rda_val}")
+        summary_parts.append(f"{display_name}: {formatted_rda_val}")
     
     summary_parts.append(f"\nDeficit/Excess: ")
-    # Iterate over nutrient_comparison
-    for nutrient, diff in nutrient_comparison.items():
+    for nutrient_attr, diff in nutrient_comparison.items():
+        display_name = nutrient_attr.replace('_kcal', ' (kcal)').replace('_g', ' (g)').replace('_mg', ' (mg)')
         if diff is not None:
             status = "excess" if diff > 0 else "deficit" if diff < 0 else "meets target"
-            summary_parts.append(f"{nutrient}: {abs(diff):.1f} ({status})")
+            summary_parts.append(f"{display_name}: {abs(diff):.1f} ({status})")
         else:
-             summary_parts.append(f"{nutrient}: N/A (no RDA target)")
-
+            summary_parts.append(f"{display_name}: N/A (no RDA target)")
 
     final_summary = "; ".join(summary_parts)
 
-    # Sanitize all outputs as a final check
-    # print(f"total_nutrients before sanitize: {total_nutrients}")
-    # print(f"rda_targets before sanitize: {rda_targets}")
-    # print(f"nutrient_comparison before sanitize: {nutrient_comparison}")
-
-    return sanitize_for_json({
+    return {
         "selected_menu": selected_menu_details,
         "total_nutrients": total_nutrients,
         "rda_profile_name": request.rda_profile_name,
         "rda_targets": rda_targets,
         "nutrient_comparison": nutrient_comparison,
         "final_summary": final_summary
-    })
+    }
 
 @app.post("/api/ai-feedback")
 async def ai_feedback(request: AIFeedbackRequest):
@@ -332,13 +373,55 @@ async def ai_feedback(request: AIFeedbackRequest):
     return {"ai_feedback": ai_response_text}
 
 @app.post("/api/send-to-kitchen")
-async def send_to_kitchen(request: SendMealPlanRequest):
-    print("Received meal plan for kitchen dashboard:")
-    for category, items in request.meal_plan.items():
-        print(f"  {category}:")
-        for item in items:
-            print(f"    - {item.food_name}: {item.quantity}")
-    return {"message": "Meal plan sent to kitchen dashboard successfully!"}
+async def send_to_kitchen(request: SendMealPlanRequest, db: Session = Depends(get_db)):
+    try:
+        new_meal_plan = MealPlan()
+        db.add(new_meal_plan)
+        db.commit()
+        db.refresh(new_meal_plan)
+
+        for category, items in request.meal_plan.items():
+            for item_data in items:
+                food_item = db.query(FoodItem).filter(FoodItem.FoodName == item_data.food_name).first()
+                if not food_item:
+                    raise HTTPException(status_code=404, detail=f"Food item '{item_data.food_name}' not found when creating meal plan.")
+                
+                new_meal_plan_item = MealPlanItem(
+                    meal_plan_id=new_meal_plan.id,
+                    food_item_id=food_item.id,
+                    meal_category=category,
+                    quantity=item_data.quantity
+                )
+                db.add(new_meal_plan_item)
+        db.commit()
+
+        print(f"Meal plan (ID: {new_meal_plan.id}) saved to database for kitchen dashboard.")
+        return {"message": "Meal plan sent to kitchen dashboard successfully! (Saved to DB)"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error saving meal plan to database: {e}")
+
+@app.get("/api/meal-plans")
+async def get_meal_plans(db: Session = Depends(get_db)):
+    from sqlalchemy.orm import selectinload
+    meal_plans = db.query(MealPlan).options(selectinload(MealPlan.items)).all()
+    
+    result = []
+    for plan in meal_plans:
+        plan_data = {
+            "id": plan.id,
+            "timestamp": plan.timestamp,
+            "items": []
+        }
+        for item in plan.items:
+            food_item = db.query(FoodItem).filter(FoodItem.id == item.food_item_id).first()
+            plan_data["items"].append({
+                "meal_category": item.meal_category,
+                "food_name": food_item.FoodName if food_item else "Unknown Food",
+                "quantity": item.quantity
+            })
+        result.append(plan_data)
+    return result
 
 if __name__ == "__main__":
     import uvicorn
