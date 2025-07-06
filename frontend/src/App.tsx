@@ -275,6 +275,34 @@ function App() {
     }
   };
 
+  const handleSendToKitchen = async () => {
+    if (Object.values(mealPlan).every(category => category.length === 0)) {
+      setMessage('Meal plan is empty. Please add items before sending to kitchen.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/send-to-kitchen`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ meal_plan: mealPlan }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage(data.message);
+      } else {
+        const errorData: ErrorResponse = data; // Cast to ErrorResponse
+        setMessage(`Error sending meal plan: ${errorData.detail || response.statusText}`);
+      }
+    } catch (error) {
+      setMessage(`Network error sending meal plan: ${error}`);
+    }
+  };
+
   return (
     <div className="App">
       <header className="App-header">
@@ -371,6 +399,9 @@ function App() {
               )}
             </div>
           ))}
+          <button onClick={handleSendToKitchen} className="send-to-kitchen-button">
+            Send to Kitchen
+          </button>
         </section>
 
         {calculationResult && (

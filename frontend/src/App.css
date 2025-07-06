@@ -114,6 +114,23 @@ button:hover {
   margin-top: 20px;
 }
 
+.send-to-kitchen-button {
+  background-color: #28a745; /* Green color for send button */
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s ease;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.send-to-kitchen-button:hover {
+  background-color: #218838;
+}
+
 .message {
   margin-top: 20px;
   padding: 10px;

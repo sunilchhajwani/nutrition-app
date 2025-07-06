@@ -39,6 +39,13 @@ class AIFeedbackRequest(BaseModel):
     nutritional_summary: dict  # This will contain total_nutrients, nutrient_comparison etc.
     co_morbidities: str
 
+class MealPlanItem(BaseModel):
+    food_name: str
+    quantity: float
+
+class SendMealPlanRequest(BaseModel):
+    meal_plan: dict[str, list[MealPlanItem]] # e.g., {"Breakfast": [{"food_name": "Egg", "quantity": 2}]}
+
 # --- Data Loading and Persistence ---
 def load_data():
     global foods_df, rda_df
@@ -323,6 +330,15 @@ async def ai_feedback(request: AIFeedbackRequest):
     ai_response_text = f"Mock AI Feedback for co-morbidities: '{request.co_morbidities}'.\n\nBased on the provided nutritional summary, consider the following:\n- Ensure adequate protein intake for healing.\n- Monitor sodium levels closely if hypertension is a concern.\n- Adjust carbohydrate intake for glycemic control if diabetes is present."
 
     return {"ai_feedback": ai_response_text}
+
+@app.post("/api/send-to-kitchen")
+async def send_to_kitchen(request: SendMealPlanRequest):
+    print("Received meal plan for kitchen dashboard:")
+    for category, items in request.meal_plan.items():
+        print(f"  {category}:")
+        for item in items:
+            print(f"    - {item.food_name}: {item.quantity}")
+    return {"message": "Meal plan sent to kitchen dashboard successfully!"}
 
 if __name__ == "__main__":
     import uvicorn
