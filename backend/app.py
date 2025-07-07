@@ -6,13 +6,19 @@ import io
 import os
 import math
 import numpy as np
-from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Boolean
 import google.generativeai as genai
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship, Session
+from structure_ai_output import structure_output
+from sqlalchemy.orm import relationship, Session
 from datetime import datetime, date
 
+from database import Base, engine, SessionLocal, get_db # Import from new database.py
+from auth import router as auth_router, User # Import User model from auth.py
+
 app = FastAPI()
+
+app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+
 
 # Allow CORS for frontend development
 app.add_middleware(
@@ -22,12 +28,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# --- SQLAlchemy Setup ---
-DATABASE_URL = "sqlite:///./nutrition.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
 
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -95,14 +95,6 @@ class MealPlanItem(Base):
 
     meal_plan = relationship("MealPlan", back_populates="items")
     food_item = relationship("FoodItem", back_populates="meal_plan_items")
-
-# Dependency to get the database session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # --- Pydantic Models for Request Bodies ---
 class PatientRequest(BaseModel):
@@ -421,13 +413,28 @@ async def ai_feedback(request: AIFeedbackRequest):
         model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20')
         
         prompt = f"""
-Based on the provided information, please generate a two-part dietary feedback:
+Please analyze the following clinical/nutritional scenario and provide your feedback in a highly structured format.
 
-Part 1: Nutritional Summary Analysis
-Analyze the 'total_nutrients' and 'nutrient_comparison' from the nutritional summary. Present any significant deficits, excesses, or imbalances observed in the meal plan as a bulleted list.
+Use clear section headings (e.g., "Summary Table," "Key Findings," "Personalized Recommendations," "Example Meal Plans," "Special Instructions").
+Present key data in tables where appropriate.
+Use bullet points or numbered lists for recommendations and findings.
+Avoid long paragraphs; keep each point concise and actionable.
+If relevant, include example meal plans or clinical interventions as separate bullet points.
+Ensure the output is easy to read and suitable for quick clinical reference.
 
-Part 2: Personalized Recommendations based on User Input
-Considering the 'co_morbidities' and 'diet_preference', provide concise and actionable dietary advice tailored to these specific conditions and preferences. Present these recommendations as a bulleted list. Integrate the nutritional summary analysis from Part 1 into these recommendations where relevant.
+Here is a two-part dietary feedback based on the provided information:
+
+Part 1: Nutritional Summary Analysis (under 'Key Findings' section)
+Analyze the 'total_nutrients' and 'nutrient_comparison' from the nutritional summary. Present any significant deficits, excesses, or imbalances observed in the meal plan as a bulleted list. For each point, briefly explain its potential health implication.
+
+Part 2: Personalized Recommendations based on User Input (under 'Personalized Recommendations' section)
+Considering the 'co_morbidities' and 'diet_preference', provide concise, actionable, and prioritized dietary advice tailored to these specific conditions and preferences. Present these recommendations as a bulleted list. Each recommendation should:
+- Directly address an imbalance identified in Part 1, if applicable.
+- Suggest specific food examples or dietary strategies relevant to the 'diet_preference'.
+- Be practical and easy to understand.
+- Prioritize the most critical changes first.
+
+Integrate the nutritional summary analysis from Part 1 into these recommendations where relevant.
 
 Nutritional Summary:
 {request.nutritional_summary}
@@ -441,8 +448,11 @@ Diet Preferences:
         
         response = model.generate_content(prompt)
         ai_feedback_text = response.text
+        
+        # Structure the raw AI output
+        structured_ai_feedback = structure_output(ai_feedback_text)
 
-        return {"ai_feedback": ai_feedback_text}
+        return {"ai_feedback": structured_ai_feedback}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating AI feedback: {e}")
 
@@ -524,4 +534,4 @@ async def get_meal_plans(db: Session = Depends(get_db)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)

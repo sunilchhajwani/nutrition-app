@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import './App.css';
 import KitchenDashboard from './KitchenDashboard';
-import PatientManagement from './PatientManagement'; // Import PatientManagement
+import PatientManagement from './PatientManagement';
+import Login from './Login';
+import Register from './Register';
 
-const API_BASE_URL = 'http://localhost:8000/api'; // Backend is running on port 8000
+const API_BASE_URL = 'http://localhost:8001/api'; // Backend is running on port 8001
 
 interface FoodItem {
   'FoodName': string;
@@ -45,8 +47,10 @@ interface Patient {
 const mealCategories = ['Breakfast', 'Lunch', 'Dinner', 'Morning Snacks', 'Evening Snacks'];
 
 function App() {
-  console.log('App component rendering');
-  const [currentView, setCurrentView] = useState<'main' | 'dashboard' | 'patients'>('main'); // Add 'patients' view
+  const [currentView, setCurrentView] = useState<'login' | 'register' | 'main' | 'dashboard' | 'patients'>('login');
+  const [token, setToken] = useState<string | null>(localStorage.getItem('authToken'));
+  const [userRole, setUserRole] = useState<string | null>(localStorage.getItem('userRole'));
+
   const [foodsFile, setFoodsFile] = useState<File | null>(null);
   const [rdaFile, setRdaFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string>('');
@@ -60,18 +64,41 @@ function App() {
   const [coMorbidities, setCoMorbidities] = useState<string>('');
   const [dietPreference, setDietPreference] = useState<string>('');
   const [aiFeedback, setAiFeedback] = useState<string>('');
-  const [mealPlan, setMealPlan] = useState<{[key: string]: SelectedFood[]}>({ // New state for meal plan
-    'Breakfast': [],
-    'Lunch': [],
-    'Dinner': [],
-    'Morning Snacks': [],
-    'Evening Snacks': [],
+  const [mealPlan, setMealPlan] = useState<{[key: string]: SelectedFood[]}>({
+    'Breakfast': [], 'Lunch': [], 'Dinner': [], 'Morning Snacks': [], 'Evening Snacks': [],
   });
-  const [selectedMealCategory, setSelectedMealCategory] = useState<string>(mealCategories[0]); // Default to first category
+  const [selectedMealCategory, setSelectedMealCategory] = useState<string>(mealCategories[0]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<number | null>(null);
   const [patientSearchTerm, setPatientSearchTerm] = useState<string>('');
   const [showPatientDropdown, setShowPatientDropdown] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (token && userRole) {
+      setCurrentView('main'); // Redirect to main if already logged in
+    }
+  }, [token, userRole]);
+
+  const handleLoginSuccess = (newToken: string, role: string) => {
+    setToken(newToken);
+    setUserRole(role);
+    localStorage.setItem('authToken', newToken);
+    localStorage.setItem('userRole', role);
+    setCurrentView('main');
+  };
+
+  const handleLogout = () => {
+    setToken(null);
+    setUserRole(null);
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userRole');
+    setCurrentView('login');
+  };
+
+  const authHeaders: Record<string, string> = {};
+  if (token) {
+    authHeaders['Authorization'] = `Bearer ${token}`;
+  }
 
   // --- Data Fetching --- //
   const filteredFoods = foods.filter(food =>
@@ -89,9 +116,11 @@ function App() {
   }, [patients, patientSearchTerm]);
 
   useEffect(() => {
+    if (!token) return; // Only fetch if logged in
+
     const fetchFoods = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/foods`);
+        const response = await fetch(`${API_BASE_URL}/foods`, { headers: authHeaders });
         if (response.ok) {
           const data: FoodItem[] = await response.json();
           setFoods(data);
@@ -105,12 +134,12 @@ function App() {
 
     const fetchRdaProfiles = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/rda-profiles`);
+        const response = await fetch(`${API_BASE_URL}/rda-profiles`, { headers: authHeaders });
         if (response.ok) {
           const data: string[] = await response.json();
           setRdaProfiles(data);
           if (data.length > 0) {
-            setSelectedRdaProfile(data[0]); // Select first profile by default
+            setSelectedRdaProfile(data[0]);
           }
         } else {
           console.error('Failed to fetch RDA profiles:', response.statusText);
@@ -121,13 +150,11 @@ function App() {
     };
 
     const fetchPatients = async () => {
-      console.log('Attempting to fetch patients...');
       try {
-        const response = await fetch(`${API_BASE_URL}/patients`);
+        const response = await fetch(`${API_BASE_URL}/patients`, { headers: authHeaders });
         if (response.ok) {
           const data: Patient[] = await response.json();
           setPatients(data);
-          console.log('Successfully fetched patients:', data);
           if (data.length > 0) {
             setSelectedPatient(data[0].id);
           }
@@ -136,29 +163,15 @@ function App() {
         }
       } catch (error) {
         console.error('Network error fetching patients:', error);
-      } finally {
-        console.log('Finished patient fetch attempt.');
       }
     };
 
     fetchFoods();
     fetchRdaProfiles();
     fetchPatients();
-  }, []); // Run only once on component mount
+  }, [token]); // Re-run when token changes
 
   // --- File Upload Handlers --- //
-  const handleFoodsFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      setFoodsFile(event.target.files[0]);
-    }
-  };
-
-  const handleRdaFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      setRdaFile(event.target.files[0]);
-    }
-  };
-
   const uploadFile = async (file: File, endpoint: string) => {
     if (!file) {
       setMessage(`Please select a file for ${endpoint.split('/').pop()}.`);
@@ -171,6 +184,7 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
         method: 'POST',
+        headers: authHeaders, // Include auth headers
         body: formData,
       });
 
@@ -178,13 +192,12 @@ function App() {
 
       if (response.ok) {
         setMessage(`${file.name} uploaded successfully: ${data.message}`);
-        // Re-fetch data after successful upload
         if (endpoint === 'upload-foods') {
-          const foodsResponse = await fetch(`${API_BASE_URL}/foods`);
+          const foodsResponse = await fetch(`${API_BASE_URL}/foods`, { headers: authHeaders });
           if (foodsResponse.ok) setFoods(await foodsResponse.json());
         }
         if (endpoint === 'upload-rda') {
-          const rdaResponse = await fetch(`${API_BASE_URL}/rda-profiles`);
+          const rdaResponse = await fetch(`${API_BASE_URL}/rda-profiles`, { headers: authHeaders });
           if (rdaResponse.ok) {
             const rdaData = await rdaResponse.json();
             setRdaProfiles(rdaData);
@@ -192,7 +205,7 @@ function App() {
           }
         }
       } else {
-        const errorData: ErrorResponse = data; // Cast to ErrorResponse
+        const errorData: ErrorResponse = data;
         setMessage(`Error uploading ${file.name}: ${errorData.detail || response.statusText}`);
       }
     } catch (error) {
@@ -200,17 +213,29 @@ function App() {
     }
   };
 
+  const handleFoodsFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setFoodsFile(event.target.files[0]);
+    }
+  };
+
+  const handleRdaFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setRdaFile(event.target.files[0]);
+    }
+  };
+
   // --- Menu Selection Handlers ---
   const handleFoodQuantityChange = (foodName: string, quantity: string) => {
     const qty = parseFloat(quantity);
-    if (isNaN(qty) || qty < 0) return; // Prevent invalid quantities
+    if (isNaN(qty) || qty < 0) return;
 
     setSelectedFoods(prevSelectedFoods => {
       const existingIndex = prevSelectedFoods.findIndex(item => item.food_name === foodName);
       if (existingIndex > -1) {
         const updatedFoods = [...prevSelectedFoods];
         if (qty === 0) {
-          updatedFoods.splice(existingIndex, 1); // Remove if quantity is 0
+          updatedFoods.splice(existingIndex, 1);
         } else {
           updatedFoods[existingIndex] = { ...updatedFoods[existingIndex], quantity: qty };
         }
@@ -267,6 +292,7 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...authHeaders,
         },
         body: JSON.stringify({
           selected_foods: selectedFoods,
@@ -277,10 +303,10 @@ function App() {
       const data = await response.json();
 
       if (response.ok) {
-        setCalculationResult(data as CalculationResult); // Cast to CalculationResult
+        setCalculationResult(data as CalculationResult);
         setMessage('Nutritional calculation successful!');
       } else {
-        const errorData: ErrorResponse = data; // Cast to ErrorResponse
+        const errorData: ErrorResponse = data;
         setMessage(`Error calculating nutrition: ${errorData.detail || response.statusText}`);
         setCalculationResult(null);
       }
@@ -302,9 +328,10 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...authHeaders,
         },
         body: JSON.stringify({
-          nutritional_summary: calculationResult.total_nutrients, // Sending total nutrients for AI context
+          nutritional_summary: calculationResult.total_nutrients,
           co_morbidities: coMorbidities,
           diet_preference: dietPreference,
         }),
@@ -316,7 +343,7 @@ function App() {
         setAiFeedback(data.ai_feedback);
         setMessage('AI feedback generated successfully!');
       } else {
-        const errorData: ErrorResponse = data; // Cast to ErrorResponse
+        const errorData: ErrorResponse = data;
         setMessage(`Error generating AI feedback: ${errorData.detail || response.statusText}`);
         setAiFeedback('');
       }
@@ -341,6 +368,7 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...authHeaders,
         },
         body: JSON.stringify({ patient_id: selectedPatient, meal_plan: mealPlan }),
       });
@@ -350,7 +378,7 @@ function App() {
       if (response.ok) {
         setMessage(data.message);
       } else {
-        const errorData: ErrorResponse = data; // Cast to ErrorResponse
+        const errorData: ErrorResponse = data;
         setMessage(`Error sending meal plan: ${errorData.detail || response.statusText}`);
       }
     } catch (error) {
@@ -358,18 +386,49 @@ function App() {
     }
   };
 
+  if (!token) {
+    return (
+      <div className="App">
+        <header className="App-header">
+          <h1>Simran Nutrition App</h1>
+        </header>
+        <main className="App-main">
+          {currentView === 'login' ? (
+            <Login onLoginSuccess={handleLoginSuccess} />
+          ) : (
+            <Register onRegisterSuccess={() => setCurrentView('login')} />
+          )}
+          <p>
+            {currentView === 'login' ? (
+              <>Don't have an account? <button onClick={() => setCurrentView('register')}>Register</button></>
+            ) : (
+              <>Already have an account? <button onClick={() => setCurrentView('login')}>Login</button></>
+            )}
+          </p>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <header className="App-header">
         <h1>Simran Nutrition App</h1>
         <nav>
-          <button onClick={() => setCurrentView('main')} className={currentView === 'main' ? 'active' : ''}>Nutrition Planner</button>
-          <button onClick={() => setCurrentView('dashboard')} className={currentView === 'dashboard' ? 'active' : ''}>Kitchen Dashboard</button>
-          <button onClick={() => setCurrentView('patients')} className={currentView === 'patients' ? 'active' : ''}>Patient Management</button>
+          {userRole === 'dietician' && (
+            <>
+              <button onClick={() => setCurrentView('main')} className={currentView === 'main' ? 'active' : ''}>Nutrition Planner</button>
+              <button onClick={() => setCurrentView('patients')} className={currentView === 'patients' ? 'active' : ''}>Patient Management</button>
+            </>
+          )}
+          {(userRole === 'dietician' || userRole === 'kitchen_staff') && (
+            <button onClick={() => setCurrentView('dashboard')} className={currentView === 'dashboard' ? 'active' : ''}>Kitchen Dashboard</button>
+          )}
+          <button onClick={handleLogout}>Logout</button>
         </nav>
       </header>
       <main className="App-main">
-        {currentView === 'main' ? (
+        {currentView === 'main' && userRole === 'dietician' && (
           <>
             <section className="file-upload-section">
               <h2>Upload Data Files</h2>
@@ -401,7 +460,7 @@ function App() {
                     setShowPatientDropdown(true);
                   }}
                   onFocus={() => setShowPatientDropdown(true)}
-                  onBlur={() => setTimeout(() => setShowPatientDropdown(false), 100)} // Delay to allow click on item
+                  onBlur={() => setTimeout(() => setShowPatientDropdown(false), 100)}
                 />
                 {showPatientDropdown && patientSearchTerm && (
                   <ul className="patient-dropdown-list">
@@ -616,9 +675,11 @@ function App() {
             </section>
 
           </>
-        ) : currentView === 'dashboard' ? (
+        )}
+        {currentView === 'dashboard' && (userRole === 'dietician' || userRole === 'kitchen_staff') && (
           <KitchenDashboard />
-        ) : (
+        )}
+        {currentView === 'patients' && userRole === 'dietician' && (
           <PatientManagement />
         )}
       </main>

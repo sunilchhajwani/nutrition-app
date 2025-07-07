@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'http://localhost:8001/api';
 
 interface MealPlanItem {
   id: number;
@@ -25,6 +25,11 @@ interface MealPlan {
 }
 
 const DashboardSummary = ({ mealPlans }: { mealPlans: MealPlan[] }) => {
+  const [showAllPrepared, setShowAllPrepared] = useState(false);
+  const [showAllDelivered, setShowAllDelivered] = useState(false);
+  const [showAllUnprepared, setShowAllUnprepared] = useState(false);
+  const [showAllNotDelivered, setShowAllNotDelivered] = useState(false);
+
   const summary = useMemo(() => {
     const preparedItems = mealPlans.flatMap(plan =>
       plan.items
@@ -74,6 +79,30 @@ const DashboardSummary = ({ mealPlans }: { mealPlans: MealPlan[] }) => {
     };
   }, [mealPlans]);
 
+  const renderItems = (items: any[], showAll: boolean, toggleShowAll: () => void) => {
+    const displayItems = showAll ? items : items.slice(0, 5);
+    return (
+      <>
+        {displayItems.length > 0 ? (
+          <ul>
+            {displayItems.map((item, index) => (
+              <li key={index}>
+                Meal ID: {item.planId} - {item.mealCategory} - {item.foodName}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>None</p>
+        )}
+        {items.length > 5 && (
+          <button onClick={toggleShowAll} style={{ marginTop: '5px' }}>
+            {showAll ? 'Show Less' : 'Show More'}
+          </button>
+        )}
+      </>
+    );
+  };
+
   return (
     <div className="dashboard-summary" style={{ marginBottom: '20px', padding: '15px', border: '1px solid #ccc', borderRadius: '5px' }}>
       <h3>Summary</h3>
@@ -81,65 +110,25 @@ const DashboardSummary = ({ mealPlans }: { mealPlans: MealPlan[] }) => {
         <summary style={{ color: 'green', cursor: 'pointer' }}>
           <strong>Prepared Items ({summary.preparedItems.length})</strong>
         </summary>
-        {summary.preparedItems.length > 0 ? (
-          <ul>
-            {summary.preparedItems.map((item, index) => (
-              <li key={index}>
-                Meal ID: {item.planId} - {item.mealCategory} - {item.foodName}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>None</p>
-        )}
+        {renderItems(summary.preparedItems, showAllPrepared, () => setShowAllPrepared(!showAllPrepared))}
       </details>
       <details open>
         <summary style={{ color: 'green', cursor: 'pointer' }}>
           <strong>Delivered Items ({summary.deliveredItems.length})</strong>
         </summary>
-        {summary.deliveredItems.length > 0 ? (
-          <ul>
-            {summary.deliveredItems.map((item, index) => (
-              <li key={index}>
-                Meal ID: {item.planId} - {item.mealCategory} - {item.foodName}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>None</p>
-        )}
+        {renderItems(summary.deliveredItems, showAllDelivered, () => setShowAllDelivered(!showAllDelivered))}
       </details>
       <details open>
         <summary style={{ color: 'red', cursor: 'pointer' }}>
           <strong>Unprepared Items ({summary.unpreparedItems.length})</strong>
         </summary>
-        {summary.unpreparedItems.length > 0 ? (
-          <ul>
-            {summary.unpreparedItems.map((item, index) => (
-              <li key={index}>
-                Meal ID: {item.planId} - {item.mealCategory} - {item.foodName}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>None</p>
-        )}
+        {renderItems(summary.unpreparedItems, showAllUnprepared, () => setShowAllUnprepared(!showAllUnprepared))}
       </details>
       <details open>
         <summary style={{ color: 'red', cursor: 'pointer' }}>
           <strong>Not Delivered Items ({summary.notDeliveredItems.length})</strong>
         </summary>
-        {summary.notDeliveredItems.length > 0 ? (
-          <ul>
-            {summary.notDeliveredItems.map((item, index) => (
-              <li key={index}>
-                Meal ID: {item.planId} - {item.mealCategory} - {item.foodName}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>None</p>
-        )}
+        {renderItems(summary.notDeliveredItems, showAllNotDelivered, () => setShowAllNotDelivered(!showAllNotDelivered))}
       </details>
     </div>
   );
@@ -152,11 +141,17 @@ function KitchenDashboard() {
 
   const handleStatusChange = async (itemId: number, type: 'prepared' | 'delivered', newStatus: boolean) => {
     try {
+      const token = localStorage.getItem('authToken');
+      const authHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        authHeaders['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${API_BASE_URL}/meal-plan-items/${itemId}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: authHeaders,
         body: JSON.stringify({ [type]: newStatus }),
       });
 
@@ -170,17 +165,24 @@ function KitchenDashboard() {
           }))
         );
       } else {
-        setError(`Failed to update status for item ${itemId}: ${response.statusText}`);
+        const errorData = await response.json();
+        setError(`Failed to update status for item ${itemId}: ${errorData.detail || response.statusText}`);
       }
-    } catch (err) {
-      setError(`Network error updating status: ${err}`);
+    } catch (err: any) {
+      setError(`Network error updating status: ${err.message || err}`);
     }
   };
 
   useEffect(() => {
     const fetchMealPlans = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/meal-plans`);
+      const token = localStorage.getItem('authToken');
+    const authHeaders: Record<string, string> = {};
+    if (token) {
+      authHeaders['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/meal-plans`, { headers: authHeaders });
         if (response.ok) {
           const data: MealPlan[] = await response.json();
           setMealPlans(data);
