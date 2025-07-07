@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import './App.css';
 import KitchenDashboard from './KitchenDashboard';
 import PatientManagement from './PatientManagement'; // Import PatientManagement
@@ -42,7 +42,10 @@ interface Patient {
   sex: string;
 }
 
+const mealCategories = ['Breakfast', 'Lunch', 'Dinner', 'Morning Snacks', 'Evening Snacks'];
+
 function App() {
+  console.log('App component rendering');
   const [currentView, setCurrentView] = useState<'main' | 'dashboard' | 'patients'>('main'); // Add 'patients' view
   const [foodsFile, setFoodsFile] = useState<File | null>(null);
   const [rdaFile, setRdaFile] = useState<File | null>(null);
@@ -63,15 +66,26 @@ function App() {
     'Morning Snacks': [],
     'Evening Snacks': [],
   });
-  const mealCategories = ['Breakfast', 'Lunch', 'Dinner', 'Morning Snacks', 'Evening Snacks'];
   const [selectedMealCategory, setSelectedMealCategory] = useState<string>(mealCategories[0]); // Default to first category
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<number | null>(null);
+  const [patientSearchTerm, setPatientSearchTerm] = useState<string>('');
+  const [showPatientDropdown, setShowPatientDropdown] = useState<boolean>(false);
 
   // --- Data Fetching --- //
   const filteredFoods = foods.filter(food =>
     food.FoodName.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const filteredPatients = useMemo(() => {
+    if (!patientSearchTerm) {
+      return patients;
+    }
+    return patients.filter((p: Patient) =>
+      p.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+      p.hospital_id.toLowerCase().includes(patientSearchTerm.toLowerCase())
+    );
+  }, [patients, patientSearchTerm]);
 
   useEffect(() => {
     const fetchFoods = async () => {
@@ -106,19 +120,23 @@ function App() {
     };
 
     const fetchPatients = async () => {
+      console.log('Attempting to fetch patients...');
       try {
         const response = await fetch(`${API_BASE_URL}/patients`);
         if (response.ok) {
           const data: Patient[] = await response.json();
           setPatients(data);
+          console.log('Successfully fetched patients:', data);
           if (data.length > 0) {
             setSelectedPatient(data[0].id);
           }
         } else {
-          console.error('Failed to fetch patients:', response.statusText);
+          console.error('Failed to fetch patients (response not ok):', response.status, response.statusText);
         }
       } catch (error) {
         console.error('Network error fetching patients:', error);
+      } finally {
+        console.log('Finished patient fetch attempt.');
       }
     };
 
@@ -369,16 +387,42 @@ function App() {
             <section className="menu-planning-section">
               <h2>Menu Planning</h2>
               <div className="patient-selection">
-                <label htmlFor="patient">Select Patient:</label>
-                <select
-                  id="patient"
-                  value={selectedPatient === null ? '' : selectedPatient}
-                  onChange={(e) => setSelectedPatient(e.target.value === '' ? null : parseInt(e.target.value))}
-                >
-                  {patients.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.hospital_id})</option>
-                  ))}
-                </select>
+                <label htmlFor="patient-search">Select Patient:</label>
+                <input
+                  id="patient-search"
+                  type="text"
+                  placeholder="Search patient by name or ID"
+                  value={patientSearchTerm}
+                  onChange={(e) => {
+                    setPatientSearchTerm(e.target.value);
+                    console.log('Patient Search Term:', e.target.value);
+                    setShowPatientDropdown(true);
+                  }}
+                  onFocus={() => setShowPatientDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowPatientDropdown(false), 100)} // Delay to allow click on item
+                />
+                {showPatientDropdown && patientSearchTerm && (
+                  <ul className="patient-dropdown-list">
+                    {filteredPatients.map((p: Patient) => (
+                      <li
+                        key={p.id}
+                        onMouseDown={() => {
+                          setSelectedPatient(p.id);
+                          setPatientSearchTerm(`${p.name} (${p.hospital_id})`);
+                          setShowPatientDropdown(false);
+                        }}
+                      >
+                        {p.name} ({p.hospital_id})
+                      </li>
+                    ))}
+                    {filteredPatients.length === 0 && (
+                      <li>No matching patients</li>
+                    )}
+                  </ul>
+                )}
+                {selectedPatient && (
+                  <p>Selected: {patients.find((p: Patient) => p.id === selectedPatient)?.name} ({patients.find((p: Patient) => p.id === selectedPatient)?.hospital_id})</p>
+                )}
               </div>
               <div className="rda-profile-selection">
                 <label htmlFor="rda-profile">Select RDA Profile:</label>
@@ -387,7 +431,7 @@ function App() {
                   value={selectedRdaProfile}
                   onChange={(e) => setSelectedRdaProfile(e.target.value)}
                 >
-                  {rdaProfiles.map(profile => (
+                  {rdaProfiles.map((profile: string) => (
                     <option key={profile} value={profile}>{profile}</option>
                   ))}
                 </select>
@@ -419,7 +463,7 @@ function App() {
                         value={selectedMealCategory}
                         onChange={(e) => setSelectedMealCategory(e.target.value)}
                       >
-                        {mealCategories.map(category => (
+                        {mealCategories.map((category: string) => (
                           <option key={category} value={category}>{category}</option>
                         ))}
                       </select>
@@ -439,7 +483,7 @@ function App() {
 
             <section className="meal-plan-section">
               <h2>Your Meal Plan</h2>
-              {mealCategories.map(category => (
+              {mealCategories.map((category: string) => (
                 <div key={category} className="meal-category">
                   <h3>{category}</h3>
                   {mealPlan[category].length > 0 ? (
