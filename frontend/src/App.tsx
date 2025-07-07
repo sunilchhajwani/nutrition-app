@@ -58,6 +58,7 @@ function App() {
   const [selectedRdaProfile, setSelectedRdaProfile] = useState<string>('');
   const [calculationResult, setCalculationResult] = useState<CalculationResult | null>(null);
   const [coMorbidities, setCoMorbidities] = useState<string>('');
+  const [dietPreference, setDietPreference] = useState<string>('');
   const [aiFeedback, setAiFeedback] = useState<string>('');
   const [mealPlan, setMealPlan] = useState<{[key: string]: SelectedFood[]}>({ // New state for meal plan
     'Breakfast': [],
@@ -305,6 +306,7 @@ function App() {
         body: JSON.stringify({
           nutritional_summary: calculationResult.total_nutrients, // Sending total nutrients for AI context
           co_morbidities: coMorbidities,
+          diet_preference: dietPreference,
         }),
       });
 
@@ -591,6 +593,16 @@ function App() {
                   onChange={(e) => setCoMorbidities(e.target.value)}
                   placeholder="e.g., Diabetes, Hypertension, Renal Failure, Post-operative recovery..."
                 ></textarea>
+              </div>
+              <div className="diet-preference-input">
+                <label htmlFor="diet-preference">Diet Preferences:</label>
+                <input
+                  id="diet-preference"
+                  type="text"
+                  value={dietPreference}
+                  onChange={(e) => setDietPreference(e.target.value)}
+                  placeholder="e.g., Indian diet, Vegetarian, Gluten-free..."
+                />
               </div>
               <button onClick={handleGenerateAiFeedback} className="ai-button">
                 Generate AI Feedback

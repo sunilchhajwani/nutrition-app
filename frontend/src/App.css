@@ -68,7 +68,8 @@ h2 {
 .upload-item,
 .food-item,
 .rda-profile-selection,
-.co-morbidities-input {
+.co-morbidities-input,
+.diet-preference-input {
   display: flex;
   flex-direction: column;
   margin-bottom: 15px;
@@ -89,7 +90,8 @@ h2 {
 
 .upload-item label,
 .rda-profile-selection label,
-.co-morbidities-input label {
+.co-morbidities-input label,
+.diet-preference-input label {
   margin-bottom: 5px;
   font-weight: bold;
   color: #555;

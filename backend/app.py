@@ -7,6 +7,7 @@ import os
 import math
 import numpy as np
 from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, Boolean
+import google.generativeai as genai
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
 from datetime import datetime, date
@@ -27,6 +28,12 @@ DATABASE_URL = "sqlite:///./nutrition.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+# Configure Gemini API
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable not set.")
+genai.configure(api_key=GEMINI_API_KEY)
 
 # --- Database Models ---
 class Patient(Base):
@@ -115,6 +122,7 @@ class CalculateNutritionRequest(BaseModel):
 class AIFeedbackRequest(BaseModel):
     nutritional_summary: dict  # This will contain total_nutrients, nutrient_comparison etc.
     co_morbidities: str
+    diet_preference: str
 
 class MealPlanItemRequest(BaseModel):
     food_name: str
@@ -409,10 +417,34 @@ async def calculate_nutrition(request: CalculateNutritionRequest, db: Session = 
 
 @app.post("/api/ai-feedback")
 async def ai_feedback(request: AIFeedbackRequest):
-    # Mock AI response for now
-    ai_response_text = f"Mock AI Feedback for co-morbidities: '{request.co_morbidities}'.\n\nBased on the provided nutritional summary, consider the following:\n- Ensure adequate protein intake for healing.\n- Monitor sodium levels closely if hypertension is a concern.\n- Adjust carbohydrate intake for glycemic control if diabetes is present."
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20')
+        
+        prompt = f"""
+Based on the provided information, please generate a two-part dietary feedback:
 
-    return {"ai_feedback": ai_response_text}
+Part 1: Nutritional Summary Analysis
+Analyze the 'total_nutrients' and 'nutrient_comparison' from the nutritional summary. Comment on any significant deficits, excesses, or imbalances observed in the meal plan.
+
+Part 2: Personalized Recommendations based on User Input
+Considering the 'co_morbidities' and 'diet_preference', provide concise and actionable dietary advice tailored to these specific conditions and preferences. Integrate the nutritional summary analysis from Part 1 into these recommendations where relevant.
+
+Nutritional Summary:
+{request.nutritional_summary}
+
+Patient Co-morbidities:
+{request.co_morbidities}
+
+Diet Preferences:
+{request.diet_preference}
+"""
+        
+        response = model.generate_content(prompt)
+        ai_feedback_text = response.text
+
+        return {"ai_feedback": ai_feedback_text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating AI feedback: {e}")
 
 @app.post("/api/send-to-kitchen")
 async def send_to_kitchen(request: SendMealPlanRequest, db: Session = Depends(get_db)):
