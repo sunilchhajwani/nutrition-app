@@ -6,7 +6,7 @@ import io
 import os
 import math
 import numpy as np
-from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
 from datetime import datetime
@@ -72,6 +72,8 @@ class MealPlanItem(Base):
     food_item_id = Column(Integer, ForeignKey("food_items.id"))
     meal_category = Column(String) # Breakfast, Lunch, Dinner, etc.
     quantity = Column(Float)
+    prepared = Column(Boolean, default=False)
+    delivered = Column(Boolean, default=False)
 
     meal_plan = relationship("MealPlan", back_populates="items")
     food_item = relationship("FoodItem", back_populates="meal_plan_items")
@@ -103,6 +105,10 @@ class MealPlanItemRequest(BaseModel):
 
 class SendMealPlanRequest(BaseModel):
     meal_plan: dict[str, list[MealPlanItemRequest]] # e.g., {"Breakfast": [{"food_name": "Egg", "quantity": 2}]}
+
+class UpdateMealPlanItemStatusRequest(BaseModel):
+    prepared: bool | None = None
+    delivered: bool | None = None
 
 @app.on_event("startup")
 async def startup_event():
@@ -401,6 +407,21 @@ async def send_to_kitchen(request: SendMealPlanRequest, db: Session = Depends(ge
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error saving meal plan to database: {e}")
 
+@app.patch("/api/meal-plan-items/{item_id}")
+async def update_meal_plan_item_status(item_id: int, request: UpdateMealPlanItemStatusRequest, db: Session = Depends(get_db)):
+    meal_plan_item = db.query(MealPlanItem).filter(MealPlanItem.id == item_id).first()
+    if not meal_plan_item:
+        raise HTTPException(status_code=404, detail="Meal plan item not found.")
+
+    if request.prepared is not None:
+        meal_plan_item.prepared = request.prepared
+    if request.delivered is not None:
+        meal_plan_item.delivered = request.delivered
+    
+    db.commit()
+    db.refresh(meal_plan_item)
+    return {"message": "Meal plan item status updated successfully.", "item_id": item_id, "prepared": meal_plan_item.prepared, "delivered": meal_plan_item.delivered}
+
 @app.get("/api/meal-plans")
 async def get_meal_plans(db: Session = Depends(get_db)):
     from sqlalchemy.orm import selectinload
@@ -416,9 +437,12 @@ async def get_meal_plans(db: Session = Depends(get_db)):
         for item in plan.items:
             food_item = db.query(FoodItem).filter(FoodItem.id == item.food_item_id).first()
             plan_data["items"].append({
+                "id": item.id, # Include item ID for frontend updates
                 "meal_category": item.meal_category,
                 "food_name": food_item.FoodName if food_item else "Unknown Food",
-                "quantity": item.quantity
+                "quantity": item.quantity,
+                "prepared": item.prepared,
+                "delivered": item.delivered
             })
         result.append(plan_data)
     return result

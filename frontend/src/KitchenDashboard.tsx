@@ -3,9 +3,12 @@ import React, { useState, useEffect } from 'react';
 const API_BASE_URL = 'http://localhost:8000/api';
 
 interface MealPlanItem {
+  id: number;
   meal_category: string;
   food_name: string;
   quantity: number;
+  prepared: boolean;
+  delivered: boolean;
 }
 
 interface MealPlan {
