@@ -484,7 +484,10 @@ function App() {
             <section className="meal-plan-section">
               <h2>Your Meal Plan</h2>
               {mealCategories.map((category: string) => (
-                <div key={category} className="meal-category">
+                <div
+                  key={category}
+                  className={`meal-category ${mealPlan[category].length > 0 ? 'meal-category-filled' : 'meal-category-empty'}`}
+                >
                   <h3>{category}</h3>
                   {mealPlan[category].length > 0 ? (
                     <ul>

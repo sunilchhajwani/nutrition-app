@@ -254,6 +254,15 @@ button:hover {
   border-bottom: none;
 }
 
+/* Styles for meal categories based on content */
+.meal-category-filled {
+  background-color: #e6ffe6; /* Light green */
+}
+
+.meal-category-empty {
+  background-color: #ffe6e6; /* Light red */
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
