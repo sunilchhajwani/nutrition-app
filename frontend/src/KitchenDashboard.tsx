@@ -19,13 +19,25 @@ interface MealPlan {
 
 const DashboardSummary = ({ mealPlans }: { mealPlans: MealPlan[] }) => {
   const summary = useMemo(() => {
-    const preparedMealIds = mealPlans
-      .filter(plan => plan.items.length > 0 && plan.items.every(item => item.prepared))
-      .map(plan => plan.id);
+    const preparedItems = mealPlans.flatMap(plan =>
+      plan.items
+        .filter(item => item.prepared)
+        .map(item => ({
+          planId: plan.id,
+          mealCategory: item.meal_category,
+          foodName: item.food_name,
+        }))
+    );
 
-    const deliveredMealIds = mealPlans
-      .filter(plan => plan.items.length > 0 && plan.items.every(item => item.delivered))
-      .map(plan => plan.id);
+    const deliveredItems = mealPlans.flatMap(plan =>
+      plan.items
+        .filter(item => item.delivered)
+        .map(item => ({
+          planId: plan.id,
+          mealCategory: item.meal_category,
+          foodName: item.food_name,
+        }))
+    );
 
     const unpreparedItems = mealPlans.flatMap(plan =>
       plan.items
@@ -48,8 +60,8 @@ const DashboardSummary = ({ mealPlans }: { mealPlans: MealPlan[] }) => {
     );
 
     return {
-      preparedMealIds,
-      deliveredMealIds,
+      preparedItems,
+      deliveredItems,
       unpreparedItems,
       notDeliveredItems,
     };
@@ -58,10 +70,42 @@ const DashboardSummary = ({ mealPlans }: { mealPlans: MealPlan[] }) => {
   return (
     <div className="dashboard-summary" style={{ marginBottom: '20px', padding: '15px', border: '1px solid #ccc', borderRadius: '5px' }}>
       <h3>Summary</h3>
-      <div><strong>Prepared Meal IDs:</strong> {summary.preparedMealIds.join(', ') || 'None'}</div>
-      <div><strong>Delivered Meal IDs:</strong> {summary.deliveredMealIds.join(', ') || 'None'}</div>
-      <div>
-        <strong>Unprepared Items:</strong>
+      <details open>
+        <summary style={{ color: 'green', cursor: 'pointer' }}>
+          <strong>Prepared Items ({summary.preparedItems.length})</strong>
+        </summary>
+        {summary.preparedItems.length > 0 ? (
+          <ul>
+            {summary.preparedItems.map((item, index) => (
+              <li key={index}>
+                Meal ID: {item.planId} - {item.mealCategory} - {item.foodName}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>None</p>
+        )}
+      </details>
+      <details open>
+        <summary style={{ color: 'green', cursor: 'pointer' }}>
+          <strong>Delivered Items ({summary.deliveredItems.length})</strong>
+        </summary>
+        {summary.deliveredItems.length > 0 ? (
+          <ul>
+            {summary.deliveredItems.map((item, index) => (
+              <li key={index}>
+                Meal ID: {item.planId} - {item.mealCategory} - {item.foodName}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>None</p>
+        )}
+      </details>
+      <details open>
+        <summary style={{ color: 'red', cursor: 'pointer' }}>
+          <strong>Unprepared Items ({summary.unpreparedItems.length})</strong>
+        </summary>
         {summary.unpreparedItems.length > 0 ? (
           <ul>
             {summary.unpreparedItems.map((item, index) => (
@@ -71,11 +115,13 @@ const DashboardSummary = ({ mealPlans }: { mealPlans: MealPlan[] }) => {
             ))}
           </ul>
         ) : (
-          <span> None</span>
+          <p>None</p>
         )}
-      </div>
-      <div>
-        <strong>Not Delivered Items:</strong>
+      </details>
+      <details open>
+        <summary style={{ color: 'red', cursor: 'pointer' }}>
+          <strong>Not Delivered Items ({summary.notDeliveredItems.length})</strong>
+        </summary>
         {summary.notDeliveredItems.length > 0 ? (
           <ul>
             {summary.notDeliveredItems.map((item, index) => (
@@ -85,9 +131,9 @@ const DashboardSummary = ({ mealPlans }: { mealPlans: MealPlan[] }) => {
             ))}
           </ul>
         ) : (
-          <span> None</span>
+          <p>None</p>
         )}
-      </div>
+      </details>
     </div>
   );
 };
