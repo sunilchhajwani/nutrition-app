@@ -424,10 +424,10 @@ async def ai_feedback(request: AIFeedbackRequest):
 Based on the provided information, please generate a two-part dietary feedback:
 
 Part 1: Nutritional Summary Analysis
-Analyze the 'total_nutrients' and 'nutrient_comparison' from the nutritional summary. Comment on any significant deficits, excesses, or imbalances observed in the meal plan.
+Analyze the 'total_nutrients' and 'nutrient_comparison' from the nutritional summary. Present any significant deficits, excesses, or imbalances observed in the meal plan as a bulleted list.
 
 Part 2: Personalized Recommendations based on User Input
-Considering the 'co_morbidities' and 'diet_preference', provide concise and actionable dietary advice tailored to these specific conditions and preferences. Integrate the nutritional summary analysis from Part 1 into these recommendations where relevant.
+Considering the 'co_morbidities' and 'diet_preference', provide concise and actionable dietary advice tailored to these specific conditions and preferences. Present these recommendations as a bulleted list. Integrate the nutritional summary analysis from Part 1 into these recommendations where relevant.
 
 Nutritional Summary:
 {request.nutritional_summary}
