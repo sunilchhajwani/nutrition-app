@@ -14,6 +14,13 @@ interface MealPlanItem {
 interface MealPlan {
   id: number;
   timestamp: string;
+  patient: {
+    id: number;
+    hospital_id: string;
+    name: string;
+    age: number;
+    sex: string;
+  } | null;
   items: MealPlanItem[];
 }
 
@@ -210,6 +217,12 @@ function KitchenDashboard() {
             <div key={plan.id} className="meal-plan-card">
               <h3>Meal Plan ID: {plan.id}</h3>
               <p>Date: {new Date(plan.timestamp).toLocaleString()}</p>
+              {plan.patient && (
+                <div className="patient-details">
+                  <h4>Patient: {plan.patient.name} ({plan.patient.hospital_id})</h4>
+                  <p>Age: {plan.patient.age}, Sex: {plan.patient.sex}</p>
+                </div>
+              )}
               <div className="meal-plan-items">
                 {Object.entries(
                   plan.items.reduce((acc, item) => {

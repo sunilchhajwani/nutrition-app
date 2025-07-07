@@ -9,7 +9,7 @@ import numpy as np
 from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
-from datetime import datetime
+from datetime import datetime, date
 
 app = FastAPI()
 
@@ -29,6 +29,16 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # --- Database Models ---
+class Patient(Base):
+    __tablename__ = "patients"
+    id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(String, unique=True, index=True)
+    name = Column(String)
+    age = Column(Integer)
+    sex = Column(String)
+
+    meal_plans = relationship("MealPlan", back_populates="patient")
+
 class FoodItem(Base):
     __tablename__ = "food_items"
     id = Column(Integer, primary_key=True, index=True)
@@ -60,10 +70,11 @@ class RDAProfile(Base):
 class MealPlan(Base):
     __tablename__ = "meal_plans"
     id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"))
     timestamp = Column(String, default=lambda: datetime.now().isoformat()) # Store as ISO format string
-    # Add other fields like dietician_id, patient_id if multi-user is implemented
 
     items = relationship("MealPlanItem", back_populates="meal_plan")
+    patient = relationship("Patient", back_populates="meal_plans")
 
 class MealPlanItem(Base):
     __tablename__ = "meal_plan_items"
@@ -87,6 +98,12 @@ def get_db():
         db.close()
 
 # --- Pydantic Models for Request Bodies ---
+class PatientRequest(BaseModel):
+    hospital_id: str
+    name: str
+    age: int
+    sex: str
+
 class FoodSelection(BaseModel):
     food_name: str
     quantity: float  # Assuming quantity can be a decimal (e.g., 0.5 cups)
@@ -104,6 +121,7 @@ class MealPlanItemRequest(BaseModel):
     quantity: float
 
 class SendMealPlanRequest(BaseModel):
+    patient_id: int
     meal_plan: dict[str, list[MealPlanItemRequest]] # e.g., {"Breakfast": [{"food_name": "Egg", "quantity": 2}]}
 
 class UpdateMealPlanItemStatusRequest(BaseModel):
@@ -113,15 +131,45 @@ class UpdateMealPlanItemStatusRequest(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     Base.metadata.create_all(bind=engine)
-    # Configure Gemini API (Uncomment and replace with your API key)
-    # GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # It's best practice to use environment variables
-    # if GEMINI_API_KEY:
-    #     genai.configure(api_key=GEMINI_API_KEY)
-    # else:
-    #     print("Warning: GEMINI_API_KEY not found. AI feedback will not work.")
 
-# --- Utility Functions ---
-# --- Endpoints ---
+# --- Patient Endpoints ---
+@app.post("/api/patients", response_model=PatientRequest)
+async def create_patient(patient: PatientRequest, db: Session = Depends(get_db)):
+    db_patient = Patient(**patient.dict())
+    db.add(db_patient)
+    db.commit()
+    db.refresh(db_patient)
+    return db_patient
+
+@app.get("/api/patients")
+async def get_patients(db: Session = Depends(get_db)):
+    return db.query(Patient).all()
+
+@app.get("/api/patients/{patient_id}")
+async def get_patient(patient_id: int, db: Session = Depends(get_db)):
+    return db.query(Patient).filter(Patient.id == patient_id).first()
+
+@app.put("/api/patients/{patient_id}", response_model=PatientRequest)
+async def update_patient(patient_id: int, patient: PatientRequest, db: Session = Depends(get_db)):
+    db_patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not db_patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    for var, value in vars(patient).items():
+        setattr(db_patient, var, value) if value else None
+    db.commit()
+    db.refresh(db_patient)
+    return db_patient
+
+@app.delete("/api/patients/{patient_id}")
+async def delete_patient(patient_id: int, db: Session = Depends(get_db)):
+    db_patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not db_patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    db.delete(db_patient)
+    db.commit()
+    return {"message": "Patient deleted successfully"}
+
+# --- Other Endpoints ---
 @app.get("/")
 async def read_root():
     return {"message": "Simran Nutrition App Backend is running!"}
@@ -361,18 +409,6 @@ async def calculate_nutrition(request: CalculateNutritionRequest, db: Session = 
 
 @app.post("/api/ai-feedback")
 async def ai_feedback(request: AIFeedbackRequest):
-    # Placeholder for Gemini API integration
-    # You will need to uncomment and configure google.generativeai
-    # and set your GEMINI_API_KEY environment variable.
-
-    # model = genai.GenerativeModel('gemini-pro')
-    # prompt = f"Given the following nutritional summary: {request.nutritional_summary} and patient co-morbidities: {request.co_morbidities}. Provide a concise nutritional feedback, highlighting potential concerns or positive aspects related to their conditions. Keep it professional and actionable for a dietitian."
-    # try:
-    #     response = model.generate_content(prompt)
-    #     ai_response_text = response.text
-    # except Exception as e:
-    #     ai_response_text = f"Error generating AI feedback: {e}"
-
     # Mock AI response for now
     ai_response_text = f"Mock AI Feedback for co-morbidities: '{request.co_morbidities}'.\n\nBased on the provided nutritional summary, consider the following:\n- Ensure adequate protein intake for healing.\n- Monitor sodium levels closely if hypertension is a concern.\n- Adjust carbohydrate intake for glycemic control if diabetes is present."
 
@@ -381,7 +417,7 @@ async def ai_feedback(request: AIFeedbackRequest):
 @app.post("/api/send-to-kitchen")
 async def send_to_kitchen(request: SendMealPlanRequest, db: Session = Depends(get_db)):
     try:
-        new_meal_plan = MealPlan()
+        new_meal_plan = MealPlan(patient_id=request.patient_id)
         db.add(new_meal_plan)
         db.commit()
         db.refresh(new_meal_plan)
@@ -432,6 +468,13 @@ async def get_meal_plans(db: Session = Depends(get_db)):
         plan_data = {
             "id": plan.id,
             "timestamp": plan.timestamp,
+            "patient": {
+                "id": plan.patient.id,
+                "hospital_id": plan.patient.hospital_id,
+                "name": plan.patient.name,
+                "age": plan.patient.age,
+                "sex": plan.patient.sex,
+            } if plan.patient else None,
             "items": []
         }
         for item in plan.items:

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import KitchenDashboard from './KitchenDashboard';
+import PatientManagement from './PatientManagement'; // Import PatientManagement
 
 const API_BASE_URL = 'http://localhost:8000/api'; // Backend is running on port 8000
 
@@ -33,8 +34,16 @@ interface ErrorResponse {
   detail: string;
 }
 
+interface Patient {
+  id: number;
+  hospital_id: string;
+  name: string;
+  age: number;
+  sex: string;
+}
+
 function App() {
-  const [currentView, setCurrentView] = useState<'main' | 'dashboard'>('main'); // 'main' or 'dashboard'
+  const [currentView, setCurrentView] = useState<'main' | 'dashboard' | 'patients'>('main'); // Add 'patients' view
   const [foodsFile, setFoodsFile] = useState<File | null>(null);
   const [rdaFile, setRdaFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string>('');
@@ -56,6 +65,8 @@ function App() {
   });
   const mealCategories = ['Breakfast', 'Lunch', 'Dinner', 'Morning Snacks', 'Evening Snacks'];
   const [selectedMealCategory, setSelectedMealCategory] = useState<string>(mealCategories[0]); // Default to first category
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<number | null>(null);
 
   // --- Data Fetching --- //
   const filteredFoods = foods.filter(food =>
@@ -94,8 +105,26 @@ function App() {
       }
     };
 
+    const fetchPatients = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/patients`);
+        if (response.ok) {
+          const data: Patient[] = await response.json();
+          setPatients(data);
+          if (data.length > 0) {
+            setSelectedPatient(data[0].id);
+          }
+        } else {
+          console.error('Failed to fetch patients:', response.statusText);
+        }
+      } catch (error) {
+        console.error('Network error fetching patients:', error);
+      }
+    };
+
     fetchFoods();
     fetchRdaProfiles();
+    fetchPatients();
   }, []); // Run only once on component mount
 
   // --- File Upload Handlers --- //
@@ -282,6 +311,10 @@ function App() {
       setMessage('Meal plan is empty. Please add items before sending to kitchen.');
       return;
     }
+    if (!selectedPatient) {
+      setMessage('Please select a patient.');
+      return;
+    }
 
     try {
       const response = await fetch(`${API_BASE_URL}/send-to-kitchen`, {
@@ -289,7 +322,7 @@ function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ meal_plan: mealPlan }),
+        body: JSON.stringify({ patient_id: selectedPatient, meal_plan: mealPlan }),
       });
 
       const data = await response.json();
@@ -312,207 +345,222 @@ function App() {
         <nav>
           <button onClick={() => setCurrentView('main')} className={currentView === 'main' ? 'active' : ''}>Nutrition Planner</button>
           <button onClick={() => setCurrentView('dashboard')} className={currentView === 'dashboard' ? 'active' : ''}>Kitchen Dashboard</button>
+          <button onClick={() => setCurrentView('patients')} className={currentView === 'patients' ? 'active' : ''}>Patient Management</button>
         </nav>
       </header>
       <main className="App-main">
         {currentView === 'main' ? (
           <>
-        <section className="file-upload-section">
-          <h2>Upload Data Files</h2>
-          <div className="upload-item">
-            <label htmlFor="foods-file">Foods Data (foods.xlsx):</label>
-            <input type="file" id="foods-.xlsx, .xls" onChange={handleFoodsFileChange} />
-            <button onClick={() => uploadFile(foodsFile!, 'upload-foods')}>Upload Foods</button>
-          </div>
-          <div className="upload-item">
-            <label htmlFor="rda-file">RDA Data (rda.xlsx):</label>
-            <input type="file" id="rda-file" accept=".xlsx, .xls" onChange={handleRdaFileChange} />
-            <button onClick={() => uploadFile(rdaFile!, 'upload-rda')}>Upload RDA</button>
-          </div>
-          {message && <p className="message">{message}</p>}
-        </section>
+            <section className="file-upload-section">
+              <h2>Upload Data Files</h2>
+              <div className="upload-item">
+                <label htmlFor="foods-file">Foods Data (foods.xlsx):</label>
+                <input type="file" id="foods-.xlsx, .xls" onChange={handleFoodsFileChange} />
+                <button onClick={() => uploadFile(foodsFile!, 'upload-foods')}>Upload Foods</button>
+              </div>
+              <div className="upload-item">
+                <label htmlFor="rda-file">RDA Data (rda.xlsx):</label>
+                <input type="file" id="rda-file" accept=".xlsx, .xls" onChange={handleRdaFileChange} />
+                <button onClick={() => uploadFile(rdaFile!, 'upload-rda')}>Upload RDA</button>
+              </div>
+              {message && <p className="message">{message}</p>}
+            </section>
 
-        <section className="menu-planning-section">
-          <h2>Menu Planning</h2>
-          <div className="rda-profile-selection">
-            <label htmlFor="rda-profile">Select RDA Profile:</label>
-            <select
-              id="rda-profile"
-              value={selectedRdaProfile}
-              onChange={(e) => setSelectedRdaProfile(e.target.value)}
-            >
-              {rdaProfiles.map(profile => (
-                <option key={profile} value={profile}>{profile}</option>
-              ))}
-            </select>
-          </div>
+            <section className="menu-planning-section">
+              <h2>Menu Planning</h2>
+              <div className="patient-selection">
+                <label htmlFor="patient">Select Patient:</label>
+                <select
+                  id="patient"
+                  value={selectedPatient === null ? '' : selectedPatient}
+                  onChange={(e) => setSelectedPatient(e.target.value === '' ? null : parseInt(e.target.value))}
+                >
+                  {patients.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.hospital_id})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="rda-profile-selection">
+                <label htmlFor="rda-profile">Select RDA Profile:</label>
+                <select
+                  id="rda-profile"
+                  value={selectedRdaProfile}
+                  onChange={(e) => setSelectedRdaProfile(e.target.value)}
+                >
+                  {rdaProfiles.map(profile => (
+                    <option key={profile} value={profile}>{profile}</option>
+                  ))}
+                </select>
+              </div>
 
-          <h3>Available Foods</h3>
-          <div className="search-bar">
-            <input
-              type="text"
-              placeholder="Search food items..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <div className="food-list">
-            {filteredFoods.length > 0 ? (
-              filteredFoods.map(food => (
-                <div key={food.FoodName} className="food-item">
-                  <span>{food.FoodName} ({food.ServingSize})</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={getSelectedFoodQuantity(food.FoodName)}
-                    onChange={(e) => handleFoodQuantityChange(food.FoodName, e.target.value)}
-                    placeholder="Quantity"
-                  />
-                  <select
-                    value={selectedMealCategory}
-                    onChange={(e) => setSelectedMealCategory(e.target.value)}
-                  >
-                    {mealCategories.map(category => (
-                      <option key={category} value={category}>{category}</option>
-                    ))}
-                  </select>
-                  <button onClick={() => handleAddToMeal(food.FoodName, getSelectedFoodQuantity(food.FoodName), selectedMealCategory)}>
-                    Add to Meal
-                  </button>
+              <h3>Available Foods</h3>
+              <div className="search-bar">
+                <input
+                  type="text"
+                  placeholder="Search food items..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="food-list">
+                {filteredFoods.length > 0 ? (
+                  filteredFoods.map(food => (
+                    <div key={food.FoodName} className="food-item">
+                      <span>{food.FoodName} ({food.ServingSize})</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={getSelectedFoodQuantity(food.FoodName)}
+                        onChange={(e) => handleFoodQuantityChange(food.FoodName, e.target.value)}
+                        placeholder="Quantity"
+                      />
+                      <select
+                        value={selectedMealCategory}
+                        onChange={(e) => setSelectedMealCategory(e.target.value)}
+                      >
+                        {mealCategories.map(category => (
+                          <option key={category} value={category}>{category}</option>
+                        ))}
+                      </select>
+                      <button onClick={() => handleAddToMeal(food.FoodName, getSelectedFoodQuantity(food.FoodName), selectedMealCategory)}>
+                        Add to Meal
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p>No food data available or no items match your search. Please upload foods.xlsx.</p>
+                )}
+              </div>
+              <button onClick={handleCalculateNutrition} className="calculate-button">
+                Calculate Nutrition
+              </button>
+            </section>
+
+            <section className="meal-plan-section">
+              <h2>Your Meal Plan</h2>
+              {mealCategories.map(category => (
+                <div key={category} className="meal-category">
+                  <h3>{category}</h3>
+                  {mealPlan[category].length > 0 ? (
+                    <ul>
+                      {mealPlan[category].map((item, index) => (
+                        <li key={index}>{item.food_name}: {item.quantity}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>No items added to {category}.</p>
+                  )}
                 </div>
-              ))
-            ) : (
-              <p>No food data available or no items match your search. Please upload foods.xlsx.</p>
-            )}
-          </div>
-          <button onClick={handleCalculateNutrition} className="calculate-button">
-            Calculate Nutrition
-          </button>
-        </section>
+              ))}
+              <button onClick={handleSendToKitchen} className="send-to-kitchen-button">
+                Send to Kitchen
+              </button>
+            </section>
 
-        <section className="meal-plan-section">
-          <h2>Your Meal Plan</h2>
-          {mealCategories.map(category => (
-            <div key={category} className="meal-category">
-              <h3>{category}</h3>
-              {mealPlan[category].length > 0 ? (
+            {calculationResult && (
+              <section className="calculation-results-section">
+                <h2>Nutritional Analysis</h2>
+                <h3>Selected Menu:</h3>
                 <ul>
-                  {mealPlan[category].map((item, index) => (
-                    <li key={index}>{item.food_name}: {item.quantity}</li>
+                  {calculationResult.selected_menu.map((item, index) => (
+                    <li key={index}>{item.food_name}: {item.quantity} {item.serving_size}</li>
                   ))}
                 </ul>
-              ) : (
-                <p>No items added to {category}.</p>
+
+                <h3>Total Nutrients:</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nutrient</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(calculationResult.total_nutrients).map(([nutrient, amount]) => (
+                      <tr key={nutrient}>
+                        <td>{nutrient}</td>
+                        <td>{amount !== null ? amount.toFixed(2) : 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <h3>RDA Targets ({calculationResult.rda_profile_name}):</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nutrient</th>
+                      <th>Target</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(calculationResult.rda_targets).map(([nutrient, target]) => (
+                      <tr key={nutrient}>
+                        <td>{nutrient}</td>
+                        <td>{target !== null ? target.toFixed(2) : 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <h3>Deficit/Excess:</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nutrient</th>
+                      <th>Difference</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(calculationResult.nutrient_comparison).map(([nutrient, diff]) => (
+                      <tr key={nutrient} className={diff !== null ? (diff < 0 ? 'deficit' : 'excess') : ''}>
+                        <td>{nutrient}</td>
+                        <td>{diff !== null ? diff.toFixed(2) : 'N/A'}</td>
+                        <td>
+                          {diff !== null
+                            ? (diff < 0 ? 'Deficit' : (diff > 0 ? 'Excess' : 'Meets Target'))
+                            : 'N/A'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <h3>Summary:</h3>
+                <p>{calculationResult.final_summary}</p>
+              </section>
+            )}
+
+            <section className="ai-feedback-section">
+              <h2>AI Feedback</h2>
+              <div className="co-morbidities-input">
+                <label htmlFor="co-morbidities">Patient Co-morbidities/Associated Conditions:</label>
+                <textarea
+                  id="co-morbidities"
+                  rows={5}
+                  value={coMorbidities}
+                  onChange={(e) => setCoMorbidities(e.target.value)}
+                  placeholder="e.g., Diabetes, Hypertension, Renal Failure, Post-operative recovery..."
+                ></textarea>
+              </div>
+              <button onClick={handleGenerateAiFeedback} className="ai-button">
+                Generate AI Feedback
+              </button>
+              {aiFeedback && (
+                <div className="ai-output">
+                  <h3>AI Recommendations:</h3>
+                  <p>{aiFeedback}</p>
+                </div>
               )}
-            </div>
-          ))}
-          <button onClick={handleSendToKitchen} className="send-to-kitchen-button">
-            Send to Kitchen
-          </button>
-        </section>
+            </section>
 
-        {calculationResult && (
-          <section className="calculation-results-section">
-            <h2>Nutritional Analysis</h2>
-            <h3>Selected Menu:</h3>
-            <ul>
-              {calculationResult.selected_menu.map((item, index) => (
-                <li key={index}>{item.food_name}: {item.quantity} {item.serving_size}</li>
-              ))}
-            </ul>
-
-            <h3>Total Nutrients:</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Nutrient</th>
-                  <th>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(calculationResult.total_nutrients).map(([nutrient, amount]) => (
-                  <tr key={nutrient}>
-                    <td>{nutrient}</td>
-                    <td>{amount !== null ? amount.toFixed(2) : 'N/A'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <h3>RDA Targets ({calculationResult.rda_profile_name}):</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Nutrient</th>
-                  <th>Target</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(calculationResult.rda_targets).map(([nutrient, target]) => (
-                  <tr key={nutrient}>
-                    <td>{nutrient}</td>
-                    <td>{target !== null ? target.toFixed(2) : 'N/A'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <h3>Deficit/Excess:</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Nutrient</th>
-                  <th>Difference</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(calculationResult.nutrient_comparison).map(([nutrient, diff]) => (
-                  <tr key={nutrient} className={diff !== null ? (diff < 0 ? 'deficit' : 'excess') : ''}>
-                    <td>{nutrient}</td>
-                    <td>{diff !== null ? diff.toFixed(2) : 'N/A'}</td>
-                    <td>
-                      {diff !== null
-                        ? (diff < 0 ? 'Deficit' : (diff > 0 ? 'Excess' : 'Meets Target'))
-                        : 'N/A'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <h3>Summary:</h3>
-            <p>{calculationResult.final_summary}</p>
-          </section>
-        )}
-
-        <section className="ai-feedback-section">
-          <h2>AI Feedback</h2>
-          <div className="co-morbidities-input">
-            <label htmlFor="co-morbidities">Patient Co-morbidities/Associated Conditions:</label>
-            <textarea
-              id="co-morbidities"
-              rows={5}
-              value={coMorbidities}
-              onChange={(e) => setCoMorbidities(e.target.value)}
-              placeholder="e.g., Diabetes, Hypertension, Renal Failure, Post-operative recovery..."
-            ></textarea>
-          </div>
-          <button onClick={handleGenerateAiFeedback} className="ai-button">
-            Generate AI Feedback
-          </button>
-          {aiFeedback && (
-            <div className="ai-output">
-              <h3>AI Recommendations:</h3>
-              <p>{aiFeedback}</p>
-            </div>
-          )}
-        </section>
-
-      </>
-        ) : (
+          </>
+        ) : currentView === 'dashboard' ? (
           <KitchenDashboard />
+        ) : (
+          <PatientManagement />
         )}
       </main>
     </div>
