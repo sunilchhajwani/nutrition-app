@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { jwtDecode } from "jwt-decode";
 
 interface LoginProps {
-  onLoginSuccess: (token: string, role: string) => void;
+  onLoginSuccess: (token: string, role: string, username: string) => void;
 }
 
 const API_BASE_URL = 'http://localhost:8001/api';
@@ -24,7 +25,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       if (response.ok) {
         const data = await response.json();
-        onLoginSuccess(data.access_token, data.user_role);
+        const decodedToken: { sub: string; role: string } = jwtDecode(data.access_token);
+        onLoginSuccess(data.access_token, data.user_role, decodedToken.sub);
       } else {
         const errorData = await response.json();
         if (typeof errorData.detail === 'string') {

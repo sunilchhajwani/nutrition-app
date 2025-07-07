@@ -161,7 +161,7 @@ button:hover {
 .message {
   margin-top: 20px;
   padding: 10px;
-  border-radius: 4px;
+  border-radius: 4ifera;
   background-color: #e9ecef;
   color: #333;
   border: 1px solid #ced4da;
@@ -350,6 +350,7 @@ tr:nth-child(even) {
   margin-bottom: 10px;
   border-bottom: 1px solid #eee;
   padding-bottom: 10px;
+  margin-bottom: 10px;
 }
 
 .meal-plan-card p {
@@ -383,4 +384,99 @@ tr:nth-child(even) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+/* Color coding for meal plan cards */
+.meal-plan-complete {
+  background-color: #e6ffe6; /* Light green */
+  border-color: #28a745; /* Green border */
+}
+
+.meal-plan-pending {
+  background-color: #ffe6e6; /* Light red */
+  border-color: #dc3545; /* Red border */
+}
+
+.user-info {
+  font-size: 0.8em;
+  margin-top: -5px;
+  margin-bottom: 10px;
+  color: #bbb;
+}
+
+.display-mode-toggle {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.display-mode-toggle button {
+  background-color: #6c757d;
+  color: white;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  margin: 0 5px;
+  transition: background-color 0.2s ease;
+}
+
+.display-mode-toggle button:hover {
+  background-color: #5a6268;
+}
+
+.display-mode-toggle button.active {
+  background-color: #007bff;
+  font-weight: bold;
+}
+
+.time-wise-view {
+  width: 100%;
+}
+
+.meal-category-section {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.meal-category-section h3 {
+  color: #0056b3;
+  margin-top: 0;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.meal-item-detail {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px dashed #eee;
+}
+
+.meal-item-detail:last-child {
+  border-bottom: none;
+}
+
+.meal-item-detail .patient-info {
+  font-size: 0.85em;
+  color: #666;
+  margin-top: 5px;
+}
+
+.meal-item-detail .status-controls label {
+  margin-left: 15px;
+}
+
+.meal-item-detail.meal-item-complete {
+  background-color: #e6ffe6; /* Light green */
+}
+
+.meal-item-detail.meal-item-pending {
+  background-color: #ffe6e6; /* Light red */
 }

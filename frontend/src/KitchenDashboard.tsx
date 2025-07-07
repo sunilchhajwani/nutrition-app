@@ -134,10 +134,31 @@ const DashboardSummary = ({ mealPlans }: { mealPlans: MealPlan[] }) => {
   );
 };
 
-function KitchenDashboard() {
+export default function KitchenDashboard() {
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]); // Default to today's date
+  const [displayMode, setDisplayMode] = useState<'patientView' | 'timeView'>('patientView'); // New state for display mode
+
+  const groupedMealItems = useMemo(() => {
+    const grouped: { [key: string]: (MealPlanItem & { patientName: string; patientHospitalId: string })[] } = {};
+    mealPlans.forEach(plan => {
+      if (plan.patient) {
+        plan.items.forEach(item => {
+          if (!grouped[item.meal_category]) {
+            grouped[item.meal_category] = [];
+          }
+          grouped[item.meal_category].push({
+            ...item,
+            patientName: plan.patient!.name,
+            patientHospitalId: plan.patient!.hospital_id,
+          });
+        });
+      }
+    });
+    return grouped;
+  }, [mealPlans]);
 
   const handleStatusChange = async (itemId: number, type: 'prepared' | 'delivered', newStatus: boolean) => {
     try {
@@ -182,7 +203,7 @@ function KitchenDashboard() {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/meal-plans`, { headers: authHeaders });
+      const response = await fetch(`${API_BASE_URL}/meal-plans?date=${selectedDate}`, { headers: authHeaders });
         if (response.ok) {
           const data: MealPlan[] = await response.json();
           setMealPlans(data);
@@ -197,7 +218,7 @@ function KitchenDashboard() {
     };
 
     fetchMealPlans();
-  }, []);
+  }, [selectedDate]); // Re-fetch when selectedDate changes
 
   if (loading) {
     return <div className="kitchen-dashboard">Loading meal plans...</div>;
@@ -210,62 +231,128 @@ function KitchenDashboard() {
   return (
     <div className="kitchen-dashboard">
       <h2>Kitchen Dashboard - All Meal Plans</h2>
+      <div className="date-filter">
+        <label htmlFor="meal-date">Select Date:</label>
+        <input
+          type="date"
+          id="meal-date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+        />
+      </div>
       <DashboardSummary mealPlans={mealPlans} />
-      {mealPlans.length === 0 ? (
-        <p>No meal plans available yet.</p>
-      ) : (
+
+      <div className="display-mode-toggle">
+        <button
+          className={displayMode === 'patientView' ? 'active' : ''}
+          onClick={() => setDisplayMode('patientView')}
+        >
+          View by Patient
+        </button>
+        <button
+          className={displayMode === 'timeView' ? 'active' : ''}
+          onClick={() => setDisplayMode('timeView')}
+        >
+          View by Time (Meal Category)
+        </button>
+      </div>
+
+      {displayMode === 'patientView' && (
         <div className="meal-plans-list">
-          {mealPlans.map(plan => (
-            <div key={plan.id} className="meal-plan-card">
-              <h3>Meal Plan ID: {plan.id}</h3>
-              <p>Date: {new Date(plan.timestamp).toLocaleString()}</p>
-              {plan.patient && (
-                <div className="patient-details">
-                  <h4>Patient: {plan.patient.name} ({plan.patient.hospital_id})</h4>
-                  <p>Age: {plan.patient.age}, Sex: {plan.patient.sex}</p>
-                </div>
-              )}
-              <div className="meal-plan-items">
-                {Object.entries(
-                  plan.items.reduce((acc, item) => {
-                    (acc[item.meal_category] = acc[item.meal_category] || []).push(item);
-                    return acc;
-                  }, {} as {[key: string]: MealPlanItem[]})
-                ).map(([category, items]) => (
-                  <div key={category} className="meal-category-display">
-                    <h4>{category}</h4>
-                    <ul>
-                      {items.map(item => (
-                        <li key={item.id}>
-                          {item.food_name}: {item.quantity}
-                          <label style={{ marginLeft: '10px' }}>
-                            <input
-                              type="checkbox"
-                              checked={item.prepared}
-                              onChange={(e) => handleStatusChange(item.id, 'prepared', e.target.checked)}
-                            />
-                            Prepared
-                          </label>
-                          <label style={{ marginLeft: '10px' }}>
-                            <input
-                              type="checkbox"
-                              checked={item.delivered}
-                              onChange={(e) => handleStatusChange(item.id, 'delivered', e.target.checked)}
-                            />
-                            Delivered
-                          </label>
-                        </li>
-                      ))}
-                    </ul>
+          {mealPlans.length === 0 ? (
+            <p>No meal plans available yet.</p>
+          ) : (
+            <>
+              {mealPlans.map(plan => (
+                <div key={plan.id} className={`meal-plan-card ${plan.items.every(item => item.prepared && item.delivered) ? 'meal-plan-complete' : 'meal-plan-pending'}`}>
+                  <h3>Meal Plan ID: {plan.id}</h3>
+                  <p>Date: {new Date(plan.timestamp).toLocaleString()}</p>
+                  {plan.patient && (
+                    <div className="patient-details">
+                      <h4>Patient: {plan.patient.name} ({plan.patient.hospital_id})</h4>
+                      <p>Age: {plan.patient.age}, Sex: {plan.patient.sex}</p>
+                    </div>
+                  )}
+                  <div className="meal-plan-items">
+                    {Object.entries(
+                      plan.items.reduce((acc, item) => {
+                        (acc[item.meal_category] = acc[item.meal_category] || []).push(item);
+                        return acc;
+                      }, {} as {[key: string]: MealPlanItem[]})
+                    ).map(([category, items]) => (
+                      <div key={category} className="meal-category-display">
+                        <h4>{category}</h4>
+                        <ul>
+                          {items.map(item => (
+                            <li key={item.id}>
+                              {item.food_name}: {item.quantity}
+                              <label style={{ marginLeft: '10px' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={item.prepared}
+                                  onChange={(e) => handleStatusChange(item.id, 'prepared', e.target.checked)}
+                                />
+                                Prepared
+                              </label>
+                              <label style={{ marginLeft: '10px' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={item.delivered}
+                                  onChange={(e) => handleStatusChange(item.id, 'delivered', e.target.checked)}
+                                />
+                                Delivered
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          ))}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
+      {displayMode === 'timeView' && (
+        <div className="time-wise-view">
+          {mealPlans.length === 0 ? (
+            <p>No meal plans available for the selected date.</p>
+          ) : (
+            <>
+              {Object.entries(groupedMealItems).map(([category, items]) => (
+                <div key={category} className="meal-category-section">
+                  <h3>{category}</h3>
+                  <ul>
+                    {items.map(item => (
+                      <li key={item.id}>
+                        {item.food_name}: {item.quantity} (Patient: {item.patientName}, ID: {item.patientHospitalId})
+                        <label style={{ marginLeft: '10px' }}>
+                          <input
+                            type="checkbox"
+                            checked={item.prepared}
+                            onChange={(e) => handleStatusChange(item.id, 'prepared', e.target.checked)}
+                          />
+                          Prepared
+                        </label>
+                        <label style={{ marginLeft: '10px' }}>
+                          <input
+                            type="checkbox"
+                            checked={item.delivered}
+                            onChange={(e) => handleStatusChange(item.id, 'delivered', e.target.checked)}
+                          />
+                          Delivered
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>
   );
 }
-
-export default KitchenDashboard;

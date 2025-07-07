@@ -44,12 +44,23 @@ interface Patient {
   sex: string;
 }
 
+type MealPlanState = {[key: string]: SelectedFood[]};
+
 const mealCategories = ['Breakfast', 'Lunch', 'Dinner', 'Morning Snacks', 'Evening Snacks'];
 
 function App() {
   const [currentView, setCurrentView] = useState<'login' | 'register' | 'main' | 'dashboard' | 'patients'>('login');
   const [token, setToken] = useState<string | null>(localStorage.getItem('authToken'));
   const [userRole, setUserRole] = useState<string | null>(localStorage.getItem('userRole'));
+  const [loggedInUsername, setLoggedInUsername] = useState<string | null>(localStorage.getItem('username'));
+
+  const authHeaders = useMemo(() => {
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+  }, [token]);
 
   const [foodsFile, setFoodsFile] = useState<File | null>(null);
   const [rdaFile, setRdaFile] = useState<File | null>(null);
@@ -64,8 +75,8 @@ function App() {
   const [coMorbidities, setCoMorbidities] = useState<string>('');
   const [dietPreference, setDietPreference] = useState<string>('');
   const [aiFeedback, setAiFeedback] = useState<string>('');
-  const [mealPlan, setMealPlan] = useState<{[key: string]: SelectedFood[]}>({
-    'Breakfast': [], 'Lunch': [], 'Dinner': [], 'Morning Snacks': [], 'Evening Snacks': [],
+  const [mealPlan, setMealPlan] = useState<MealPlanState>({
+    'Breakfast': [], 'Lunch': [], 'Dinner': [], 'Morning Snacks': [], 'Evening Snacks': []
   });
   const [selectedMealCategory, setSelectedMealCategory] = useState<string>(mealCategories[0]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -74,31 +85,30 @@ function App() {
   const [showPatientDropdown, setShowPatientDropdown] = useState<boolean>(false);
 
   useEffect(() => {
-    if (token && userRole) {
+    if (token && userRole && loggedInUsername) {
       setCurrentView('main'); // Redirect to main if already logged in
     }
-  }, [token, userRole]);
+  }, [token, userRole, loggedInUsername]);
 
-  const handleLoginSuccess = (newToken: string, role: string) => {
+  const handleLoginSuccess = (newToken: string, role: string, username: string) => {
     setToken(newToken);
     setUserRole(role);
+    setLoggedInUsername(username);
     localStorage.setItem('authToken', newToken);
     localStorage.setItem('userRole', role);
+    localStorage.setItem('username', username);
     setCurrentView('main');
   };
 
   const handleLogout = () => {
     setToken(null);
     setUserRole(null);
+    setLoggedInUsername(null);
     localStorage.removeItem('authToken');
     localStorage.removeItem('userRole');
+    localStorage.removeItem('username');
     setCurrentView('login');
   };
-
-  const authHeaders: Record<string, string> = {};
-  if (token) {
-    authHeaders['Authorization'] = `Bearer ${token}`;
-  }
 
   // --- Data Fetching --- //
   const filteredFoods = foods.filter(food =>
@@ -169,7 +179,7 @@ function App() {
     fetchFoods();
     fetchRdaProfiles();
     fetchPatients();
-  }, [token]); // Re-run when token changes
+  }, [token, authHeaders]); // Re-run when token or authHeaders changes
 
   // --- File Upload Handlers --- //
   const uploadFile = async (file: File, endpoint: string) => {
@@ -414,6 +424,9 @@ function App() {
     <div className="App">
       <header className="App-header">
         <h1>Simran Nutrition App</h1>
+        {loggedInUsername && userRole && (
+          <span className="user-info">Logged in as: {loggedInUsername} ({userRole})</span>
+        )}
         <nav>
           {userRole === 'dietician' && (
             <>

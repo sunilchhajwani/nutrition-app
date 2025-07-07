@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'http://localhost:8001/api';
 
 interface Patient {
   id: number;
@@ -16,9 +16,21 @@ function PatientManagement() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<Omit<Patient, 'id'> & { id?: number }>({ hospital_id: '', name: '', age: 0, sex: '' });
 
+  const token = localStorage.getItem('authToken');
+  const authHeaders: Record<string, string> = {};
+  if (token) {
+    authHeaders['Authorization'] = `Bearer ${token}`;
+  }
+
   const fetchPatients = async () => {
+    const token = localStorage.getItem('authToken');
+    const authHeaders: Record<string, string> = {};
+    if (token) {
+      authHeaders['Authorization'] = `Bearer ${token}`;
+    }
+
     try {
-      const response = await fetch(`${API_BASE_URL}/patients`);
+      const response = await fetch(`${API_BASE_URL}/patients`, { headers: authHeaders });
       if (response.ok) {
         const data: Patient[] = await response.json();
         setPatients(data);
@@ -44,7 +56,7 @@ function PatientManagement() {
     try {
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify(form),
       });
 
@@ -64,8 +76,14 @@ function PatientManagement() {
   };
 
   const handleDelete = async (id: number) => {
+    const token = localStorage.getItem('authToken');
+    const authHeaders: Record<string, string> = {};
+    if (token) {
+      authHeaders['Authorization'] = `Bearer ${token}`;
+    }
+
     try {
-      const response = await fetch(`${API_BASE_URL}/patients/${id}`, { method: 'DELETE' });
+      const response = await fetch(`${API_BASE_URL}/patients/${id}`, { method: 'DELETE', headers: authHeaders });
       if (response.ok) {
         fetchPatients();
       } else {

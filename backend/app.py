@@ -11,6 +11,7 @@ import google.generativeai as genai
 from structure_ai_output import structure_output
 from sqlalchemy.orm import relationship, Session
 from datetime import datetime, date
+from typing import Optional
 
 from database import Base, engine, SessionLocal, get_db # Import from new database.py
 from auth import router as auth_router, User # Import User model from auth.py
@@ -501,9 +502,14 @@ async def update_meal_plan_item_status(item_id: int, request: UpdateMealPlanItem
     return {"message": "Meal plan item status updated successfully.", "item_id": item_id, "prepared": meal_plan_item.prepared, "delivered": meal_plan_item.delivered}
 
 @app.get("/api/meal-plans")
-async def get_meal_plans(db: Session = Depends(get_db)):
+async def get_meal_plans(date: Optional[str] = None, db: Session = Depends(get_db)):
     from sqlalchemy.orm import selectinload
-    meal_plans = db.query(MealPlan).options(selectinload(MealPlan.items)).all()
+    query = db.query(MealPlan).options(selectinload(MealPlan.items))
+    if date:
+        # Assuming timestamp is stored as ISO format string (e.g., "2023-10-27T10:00:00.000")
+        # We need to filter by the date part only
+        query = query.filter(MealPlan.timestamp.startswith(date))
+    meal_plans = query.all()
     
     result = []
     for plan in meal_plans:
