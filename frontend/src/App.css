@@ -1,0 +1,482 @@
+.App {
+  text-align: center;
+  font-family: Arial, sans-serif;
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 10vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+  padding: 10px 0;
+}
+
+.App-header nav {
+  margin-top: 10px;
+}
+
+.App-header nav button {
+  background-color: #007bff;
+  color: white;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  margin: 0 5px;
+  transition: background-color 0.2s ease;
+}
+
+.App-header nav button:hover {
+  background-color: #0056b3;
+}
+
+.App-header nav button.active {
+  background-color: #28a745;
+  font-weight: bold;
+}
+
+.App-main {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px; /* Space between sections */
+}
+
+section {
+  background-color: #f0f0f0;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 800px;
+  text-align: left;
+}
+
+h2 {
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.upload-item,
+.food-item,
+.rda-profile-selection,
+.co-morbidities-input,
+.diet-preference-input {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 15px;
+}
+
+.search-bar {
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.search-bar input {
+  width: calc(100% - 20px);
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.upload-item label,
+.rda-profile-selection label,
+.co-morbidities-input label,
+.diet-preference-input label {
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #555;
+}
+
+input[type="file"],
+select,
+textarea {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: calc(100% - 18px); /* Account for padding and border */
+  margin-bottom: 10px;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+button {
+  background-color: #007bff;
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s ease;
+  margin-top: 10px;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+.upload-item button {
+  width: auto;
+  align-self: flex-start;
+}
+
+.calculate-button,
+.ai-button {
+  width: 100%;
+  padding: 12px 0;
+  font-size: 18px;
+  margin-top: 20px;
+}
+
+.send-to-kitchen-button {
+  background-color: #28a745; /* Green color for send button */
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s ease;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.send-to-kitchen-button:hover {
+  background-color: #218838;
+}
+
+.message {
+  margin-top: 20px;
+  padding: 10px;
+  border-radius: 4ifera;
+  background-color: #e9ecef;
+  color: #333;
+  border: 1px solid #ced4da;
+  text-align: center;
+}
+
+.food-list {
+  display: flex;
+  overflow-x: auto; /* Enable horizontal scrolling */
+  gap: 15px; /* Space between items */
+  margin-top: 20px;
+  padding-bottom: 10px; /* Add some padding for the scrollbar */
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+}
+
+.food-list::-webkit-scrollbar {
+  height: 8px;
+}
+
+.food-list::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 4px;
+}
+
+.food-list::-webkit-scrollbar-track {
+  background-color: #f1f1f1;
+}
+
+.food-item {
+  flex: 0 0 auto; /* Prevent items from growing/shrinking and keep their size */
+  width: 250px; /* Fixed width for each item, adjust as needed */
+}
+
+.food-item {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  flex-direction: column; /* Stack items vertically within the food-item */
+  align-items: flex-start; /* Align items to the start */
+  gap: 8px; /* Space between elements within food-item */
+}
+
+.food-item input[type="number"],
+.food-item select,
+.food-item button {
+  width: calc(100% - 20px); /* Adjust width to fit padding */
+  margin-left: 0; /* Remove left margin */
+  margin-right: 0; /* Remove right margin */
+}
+
+.food-item input[type="number"] {
+  text-align: left; /* Align quantity input to left */
+}
+
+.meal-plan-section {
+  margin-top: 30px;
+}
+
+.meal-category {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 15px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.meal-category h3 {
+  margin-top: 0;
+  color: #007bff;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+
+.meal-category ul {
+  list-style: none;
+  padding: 0;
+}
+
+.meal-category li {
+  padding: 5px 0;
+  border-bottom: 1px dashed #eee;
+}
+
+.meal-category li:last-child {
+  border-bottom: none;
+}
+
+/* Styles for meal categories based on content */
+.meal-category-filled {
+  background-color: #e6ffe6; /* Light green */
+}
+
+.meal-category-empty {
+  background-color: #ffe6e6; /* Light red */
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+table, th, td {
+  border: 1px solid #ddd;
+}
+
+th, td {
+  padding: 10px;
+  text-align: left;
+}
+
+th {
+  background-color: #e2e6ea;
+  color: #333;
+}
+
+tr:nth-child(even) {
+  background-color: #f8f9fa;
+}
+
+.deficit {
+  background-color: #ffe0e0; /* Light red for deficit */
+  color: #d9534f; /* Darker red text */
+}
+
+.excess {
+  background-color: #e0ffe0; /* Light green for excess */
+  color: #5cb85c; /* Darker green text */
+}
+
+.ai-output {
+  background-color: #e6f7ff;
+  border: 1px solid #91d5ff;
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 20px;
+}
+
+.ai-output h3 {
+  color: #1890ff;
+  margin-top: 0;
+}
+
+/* Kitchen Dashboard Styles */
+.kitchen-dashboard {
+  width: 100%;
+  max-width: 900px; /* Slightly wider for dashboard */
+  margin: 20px auto;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  text-align: left;
+}
+
+.kitchen-dashboard h2 {
+  text-align: center;
+  color: #0056b3;
+  margin-bottom: 25px;
+}
+
+.meal-plans-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.meal-plan-card {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.meal-plan-card h3 {
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+
+.meal-plan-card p {
+  font-size: 0.9em;
+  color: #666;
+  margin-bottom: 15px;
+}
+
+.meal-plan-items {
+  margin-top: 15px;
+}
+
+.meal-category-display h4 {
+  color: #007bff;
+  margin-top: 10px;
+  margin-bottom: 5px;
+}
+
+.meal-category-display ul {
+  list-style: none;
+  padding: 0;
+  margin-bottom: 10px;
+}
+
+.meal-category-display li {
+  background-color: #f0f8ff;
+  border: 1px solid #e0f2ff;
+  padding: 8px;
+  margin-bottom: 5px;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Color coding for meal plan cards */
+.meal-plan-complete {
+  background-color: #e6ffe6; /* Light green */
+  border-color: #28a745; /* Green border */
+}
+
+.meal-plan-pending {
+  background-color: #ffe6e6; /* Light red */
+  border-color: #dc3545; /* Red border */
+}
+
+.user-info {
+  font-size: 0.8em;
+  margin-top: -5px;
+  margin-bottom: 10px;
+  color: #bbb;
+}
+
+.display-mode-toggle {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.display-mode-toggle button {
+  background-color: #6c757d;
+  color: white;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  margin: 0 5px;
+  transition: background-color 0.2s ease;
+}
+
+.display-mode-toggle button:hover {
+  background-color: #5a6268;
+}
+
+.display-mode-toggle button.active {
+  background-color: #007bff;
+  font-weight: bold;
+}
+
+.time-wise-view {
+  width: 100%;
+}
+
+.meal-category-section {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.meal-category-section h3 {
+  color: #0056b3;
+  margin-top: 0;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.meal-item-detail {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px dashed #eee;
+}
+
+.meal-item-detail:last-child {
+  border-bottom: none;
+}
+
+.meal-item-detail .patient-info {
+  font-size: 0.85em;
+  color: #666;
+  margin-top: 5px;
+}
+
+.meal-item-detail .status-controls label {
+  margin-left: 15px;
+}
+
+.meal-item-detail.meal-item-complete {
+  background-color: #e6ffe6; /* Light green */
+}
+
+.meal-item-detail.meal-item-pending {
+  background-color: #ffe6e6; /* Light red */
+}
